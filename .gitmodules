@@ -1,0 +1,3 @@
+[submodule "libraries/LLGL"]
+	path = libraries/LLGL
+	url = https://github.com/LukasBanana/LLGL.git
