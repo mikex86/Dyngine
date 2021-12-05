@@ -1,13 +1,8 @@
 #include <Dyngine_internal.h>
 #include <LLGL/LLGL.h>
-#include <ErrorHandling/IllegalStateException.hpp>
 #include <Dpac/Dpac.hpp>
-
-// Vertex data structure
-struct Vertex {
-    float position[2];
-    uint8_t color[4];
-};
+#include "Shader/ShaderUtil.hpp"
+#include <LLGL/Utility.h>
 
 void RunEngine() {
     // Read Engine Resources
@@ -16,19 +11,20 @@ void RunEngine() {
     // Renderer configuration
     LLGL::RendererConfigurationVulkan vulkanConfig{};
     vulkanConfig.application.applicationName = ENGINE_NAME " " ENGINE_VERSION;
+    vulkanConfig.enabledLayers = { "VK_LAYER_LUNARG_standard_validation" };
 
     LLGL::RenderSystemDescriptor renderSystemDescriptor{};
     renderSystemDescriptor.moduleName = "Vulkan";
     renderSystemDescriptor.rendererConfig = &vulkanConfig;
 
     // Load render system module
-    auto renderSystem = LLGL::RenderSystem::Load(renderSystemDescriptor);
+    std::shared_ptr<LLGL::RenderSystem> renderSystem = LLGL::RenderSystem::Load(renderSystemDescriptor);
 
     // Create render context
     LLGL::RenderContextDescriptor contextDescriptor{};
     contextDescriptor.videoMode.resolution = {800, 600};
     contextDescriptor.vsync.enabled = true;
-    contextDescriptor.samples = 8;
+
 
     auto renderContext = renderSystem->CreateRenderContext(contextDescriptor);
 
@@ -46,9 +42,17 @@ void RunEngine() {
     window.Show();
 
     // Setup Triangle
+    LLGL::Buffer *vertexBuffer;
+    LLGL::VertexFormat vertexFormat{};
     {
         // Vertex data (3 vertices for our triangle)
         const float s = 0.5f;
+
+        // Vertex data structure
+        struct Vertex {
+            float position[2];
+            uint8_t color[4];
+        };
 
         Vertex vertices[] =
                 {
@@ -58,51 +62,84 @@ void RunEngine() {
                 };
 
         // Vertex format
-        LLGL::VertexFormat vertexFormat{};
         vertexFormat.AppendAttribute({"position", LLGL::Format::RG32Float}); // vertex position
         vertexFormat.AppendAttribute({"color", LLGL::Format::RGBA8UNorm}); // color
         vertexFormat.SetStride(sizeof(Vertex));
 
         // Vertex Buffer
-        LLGL::BufferDescriptor bufferDescriptor{};
-        bufferDescriptor.size = sizeof(vertices);
-        bufferDescriptor.bindFlags = LLGL::BindFlags::VertexBuffer;
-        bufferDescriptor.vertexAttribs = vertexFormat.attributes;
-
-        LLGL::Buffer *vertexBuffer = renderSystem->CreateBuffer(bufferDescriptor);
-
-        LLGL::Shader *vertShader{};
-
-        const auto &languages = renderSystem->GetRenderingCaps().shadingLanguages;
-        if (std::find(languages.begin(), languages.end(), LLGL::ShadingLanguage::SPIRV) == languages.end()) {
-            RAISE_EXCEPTION(errorhandling::IllegalStateException, "Spir-V shading language not available");
-        }
-        char *vertexShaderContent;
-        uint64_t shaderContentSize;
-        {
-            auto vertexShaderStream = engineResources.getEntryStream("/triangle.vert.spv");
-            shaderContentSize = vertexShaderStream.getSize();
-            vertexShaderContent = new char[shaderContentSize];
-
-            for (uint64_t i = 0; i < shaderContentSize; i++) {
-                char byte = vertexShaderStream.readInt8();
-                vertexShaderContent[i] = byte;
-            }
-        }
-        LLGL::ShaderDescriptor vertShaderDesc = {
-                LLGL::ShaderType::Vertex,
-                vertexShaderContent,
-                nullptr,
-                nullptr
+        LLGL::BufferDescriptor vertexBufferDesc{
+                .size =sizeof(vertices),
+                .bindFlags = LLGL::BindFlags::VertexBuffer,
+                .vertexAttribs = vertexFormat.attributes
         };
-        vertShaderDesc.sourceType = LLGL::ShaderSourceType::BinaryBuffer;
-        vertShaderDesc.sourceSize = shaderContentSize;
-        vertShader = renderSystem->CreateShader(vertShaderDesc);
+        vertexBuffer = renderSystem->CreateBuffer(vertexBufferDesc, vertices);
+    }
 
+    // Setup ShaderProgram
+    LLGL::ShaderProgram *shaderProgram;
+    {
+        LLGL::Shader *vertexShader = ShaderUtil::LoadSpirVShader(engineResources, "/triangle.vert.spv",
+                                                                 renderSystem,
+                                                                 LLGL::ShaderType::Vertex,
+                                                                 vertexFormat
+        );
+
+        LLGL::Shader *fragmentShader = ShaderUtil::LoadSpirVShader(engineResources,
+                                                                   "/triangle.frag.spv",
+                                                                   renderSystem,
+                                                                   LLGL::ShaderType::Fragment,
+                                                                   vertexFormat
+        );
+
+        shaderProgram = ShaderUtil::CreateShaderProgram(
+                renderSystem,
+                vertexShader,
+                fragmentShader
+        );
+    }
+
+    // Setup pipeline
+    LLGL::PipelineState *pipeline;
+    {
+        LLGL::GraphicsPipelineDescriptor pipelineDescriptor{
+                .shaderProgram = shaderProgram,
+                .renderPass = renderContext->GetRenderPass()
+        };
+
+        pipeline = renderSystem->CreatePipelineState(pipelineDescriptor);
+    }
+
+    LLGL::CommandQueue *queue = renderSystem->GetCommandQueue();
+
+    LLGL::CommandBuffer *mainCmd;
+    {
+        LLGL::CommandBufferDescriptor commandBufferDescriptor{
+                .flags =(LLGL::CommandBufferFlags::MultiSubmit)
+        };
+        mainCmd = renderSystem->CreateCommandBuffer(commandBufferDescriptor);
     }
 
     // Main loop
     while (window.ProcessEvents()) {
+        // Record commands
+        {
+            mainCmd->Begin();
+            mainCmd->SetPipelineState(*pipeline);
+            {
+                mainCmd->SetClearColor(LLGL::ColorRGBAf(0.1f, 0.1f, 0.1f));
+                mainCmd->SetVertexBuffer(*vertexBuffer);
+                mainCmd->BeginRenderPass(*renderContext);
+                {
+                    mainCmd->Clear(LLGL::ClearFlags::ColorDepth);
+                    mainCmd->SetViewport(renderContext->GetResolution());
+                    // Draw triangle with 3 vertices
+                    mainCmd->Draw(3, 0);
+                }
+                mainCmd->EndRenderPass();
+            }
+            mainCmd->End();
+        }
+        queue->Submit(*mainCmd);
         renderContext->Present();
     }
 }

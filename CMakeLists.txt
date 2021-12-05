@@ -14,7 +14,7 @@ elseif (MSVC)
 endif (CMAKE_COMPILER_IS_GNUCC)
 
 # Compile *.cpp in src/ folder
-file(GLOB_RECURSE SOURCE_FILES "${CMAKE_SOURCE_DIR}/src/*.cpp")
+file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.cpp")
 add_executable(Dyngine ${SOURCE_FILES})
 
 # Include private/ folder as internal headers
@@ -40,11 +40,19 @@ target_link_libraries(Dyngine PRIVATE Dyngine_Dpac)
 # Dpac CLI tools
 add_subdirectory("${CMAKE_SOURCE_DIR}/DpacTools")
 
+# Reset the executable and library output path (changed by DpacTools submodule)
+set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
+set(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
+
 # Low Level Graphics Library
 
 option(LLGL_BUILD_RENDERER_VULKAN "" ON) # Vulkan SDK required
 add_subdirectory("${CMAKE_SOURCE_DIR}/libraries/LLGL")
-set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}") # Reset the executable output path which gets fucked by LLGL
+
+# Reset the executable and library output path (changed by LLGL submodule)
+set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
+set(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
+
 add_compile_definitions(LLGL_ENABLE_UTILITY) # Enable the Utility functions
 
 # Link to LLGL library
@@ -53,10 +61,10 @@ target_link_libraries(Dyngine PUBLIC LLGL LLGL_Vulkan)
 # Build Engine Resources
 
 # Compile Spir-V shaders
-set(SHADER_BINARY_DIR "${CMAKE_BINARY_DIR}/shaders/spirv")
 set(SHADER_SOURCE_DIR "${CMAKE_SOURCE_DIR}/shaders")
+set(SHADER_BINARY_DIR "${CMAKE_BINARY_DIR}/shaders/spirv")
 
-file(GLOB_RECURSE SHADER_SOURCE_FILES "${SHADER_SOURCE_DIR}/*.vert" "${SHADER_SOURCE_DIR}/*.frag")
+file(GLOB_RECURSE SHADER_SOURCE_FILES CONFIGURE_DEPENDS "${SHADER_SOURCE_DIR}/*.vert" "${SHADER_SOURCE_DIR}/*.frag")
 
 find_package(Vulkan REQUIRED COMPONENTS glslc) # Vulkan SDK required
 find_program(glslc_executable NAMES glslc HINTS Vulkan::glslc)
@@ -82,7 +90,6 @@ foreach (shader_file IN LISTS SHADER_SOURCE_FILES) # Compile all shader files
     )
     list(APPEND SPV_SHADERS "${SHADER_BINARY_DIR}/${FILENAME}.spv")
 endforeach ()
-add_custom_target(Dyngine_Spvshaders ALL DEPENDS ${SPV_SHADERS})
 
 # Package Engine Resources
 set(ENGINE_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/working_directory")
@@ -93,31 +100,42 @@ add_custom_command(
         COMMENT "Creating ${ENGINE_WORKING_DIRECTORY}"
 )
 set(ENGINE_RESOURCE_PACKAGE ${ENGINE_WORKING_DIRECTORY}/EngineResources.dpac)
+
+add_custom_command(
+        COMMAND
+        "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" --target DpacDeflate --config "${CMAKE_BUILD_TYPE}"
+        COMMENT "Building DpacDeflate Tool"
+        OUTPUT "${CMAKE_BINARY_DIR}/DpacTools/DpacDeflate"
+)
+
 add_custom_command(
         COMMAND
         "${CMAKE_BINARY_DIR}/DpacTools/DpacDeflate"
         "${SHADER_BINARY_DIR}"
         "${ENGINE_RESOURCE_PACKAGE}"
-        OUTPUT "${ENGINE_RESOURCE_PACKAGE}"
-        DEPENDS "${ENGINE_WORKING_DIRECTORY}" "Dyngine_Spvshaders"
+        DEPENDS "${SHADER_BINARY_DIR}" "${ENGINE_WORKING_DIRECTORY}" "${CMAKE_BINARY_DIR}/DpacTools/DpacDeflate" ${SPV_SHADERS}
         COMMENT "Packaging engine resources"
+        OUTPUT "${ENGINE_RESOURCE_PACKAGE}"
 )
 add_custom_target(Dyngine_PackageResources ALL DEPENDS "${ENGINE_RESOURCE_PACKAGE}")
 add_dependencies(Dyngine_PackageResources DpacDeflate)
 
 # Setup Working Directory
-file(GLOB LIBRARY_FILES "${CMAKE_BINARY_DIR}/libraries/LLGL/*.dll" "${CMAKE_BINARY_DIR}/libraries/LLGL/*.so" , "${CMAKE_BINARY_DIR}/libraries/LLGL/*.dylib")
+# Copy library files
+if (${CMAKE_BUILD_TYPE} MATCHES "Debug")
+    set(LLGL_LIBRARY_POST_FIX "D")
+else ()
+    set(LLGL_LIBRARY_POST_FIX "")
+endif ()
+set(LLGL_LIBRARY_FILES "${CMAKE_BINARY_DIR}/libraries/LLGL/build/LLGL${LLGL_LIBRARY_POST_FIX}.dll;${CMAKE_BINARY_DIR}/libraries/LLGL/build/LLGL_Vulkan${LLGL_LIBRARY_POST_FIX}.dll;")
 add_custom_command(
         COMMAND
-        ${CMAKE_COMMAND} -E copy_if_different
-        ${LIBRARY_FILES}
-        ${ENGINE_WORKING_DIRECTORY}
-        DEPENDS "${ENGINE_WORKING_DIRECTORY}"
-        OUTPUT LLGL_LIB_COPY
-        COMMENT "Copying libraries to working directory"
+        ${CMAKE_COMMAND} -E copy_if_different ${LLGL_LIBRARY_FILES} ${ENGINE_WORKING_DIRECTORY}
+        DEPENDS "${ENGINE_WORKING_DIRECTORY}" LLGL LLGL_Vulkan
+        COMMENT "Copying LLGL libraries to working directory"
+        OUTPUT "LLGL_LIB_COPY"
 )
-add_custom_target(Dyngine_CopyLibraries ALL DEPENDS "LLGL_LIB_COPY")
 
-add_custom_target(Dyngine_SetupWorkingDirectory ALL DEPENDS Dyngine_CopyLibraries Dyngine_PackageResources)
+add_custom_target(Dyngine_SetupWorkingDirectory ALL DEPENDS Dyngine_PackageResources LLGL_LIB_COPY)
 
 add_dependencies(Dyngine Dyngine_SetupWorkingDirectory)

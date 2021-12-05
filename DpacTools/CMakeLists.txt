@@ -1,6 +1,10 @@
-project(Dyngine_DpacDeflate)
+project(DpacTools)
 
 set(CMAKE_CXX_STANDARD 17)
+
+# Reset the executable and library output path which get fucked by LLGL
+set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}/DpacTools/")
+set(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}/DpacTools")
 
 add_executable(DpacDeflate src/DpacDeflate.cpp)
 add_executable(DpacList src/DpacList.cpp)
