@@ -22,8 +22,6 @@ namespace buffer {
         position++;
     }
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "cppcoreguidelines-narrowing-conversions"
 
     void FileDataWriteBuffer::seek(uint64_t newPosition) {
         // This must be met, or we can only open 4 GB files, which would be terrible
@@ -46,7 +44,6 @@ namespace buffer {
         }
     }
 
-#pragma clang diagnostic pop
 
     FileDataWriteBuffer::FileDataWriteBuffer(const std::string &filePath) : AbstractDataWriteBuffer(-1, 0),
                                                                             stream(OpenStream(filePath)),

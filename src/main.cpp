@@ -2,29 +2,38 @@
 #include <LLGL/LLGL.h>
 #include <Dpac/Dpac.hpp>
 #include "Shader/ShaderUtil.hpp"
+#include "LLGL/Strings.h"
 #include <LLGL/Utility.h>
 
-void RunEngine() {
-    // Read Engine Resources
-    auto engineResources = dpac::ReadOnlyArchive::Open("EngineResources.dpac");
-
+std::shared_ptr<LLGL::RenderSystem> setupRenderSystem() {
+    LLGL::RenderSystemDescriptor renderSystemDescriptor{};
+#ifdef DYNGINE_USE_VULKAN_API
     // Renderer configuration
     LLGL::RendererConfigurationVulkan vulkanConfig{};
     vulkanConfig.application.applicationName = ENGINE_NAME " " ENGINE_VERSION;
     vulkanConfig.enabledLayers = { "VK_LAYER_LUNARG_standard_validation" };
 
-    LLGL::RenderSystemDescriptor renderSystemDescriptor{};
     renderSystemDescriptor.moduleName = "Vulkan";
     renderSystemDescriptor.rendererConfig = &vulkanConfig;
+#endif
+#ifdef DYNGINE_USE_DIRECT3D12_API
+    // Renderer configuration
+    renderSystemDescriptor.moduleName = "Direct3D12";
+#endif
+    return LLGL::RenderSystem::Load(renderSystemDescriptor);
+}
+
+void RunEngine() {
+    // Read Engine Resources
+    dpac::ReadOnlyArchive engineResources = dpac::ReadOnlyArchive::Open("EngineResources.dpac");
 
     // Load render system module
-    std::shared_ptr<LLGL::RenderSystem> renderSystem = LLGL::RenderSystem::Load(renderSystemDescriptor);
+    std::shared_ptr<LLGL::RenderSystem> renderSystem = setupRenderSystem();
 
     // Create render context
     LLGL::RenderContextDescriptor contextDescriptor{};
     contextDescriptor.videoMode.resolution = {800, 600};
     contextDescriptor.vsync.enabled = true;
-
 
     auto renderContext = renderSystem->CreateRenderContext(contextDescriptor);
 
@@ -33,7 +42,12 @@ void RunEngine() {
     std::cout << "Renderer: " << renderInfo.rendererName << std::endl;
     std::cout << "Device: " << renderInfo.deviceName << std::endl;
     std::cout << "Vendor: " << renderInfo.vendorName << std::endl;
-    std::cout << "Shading-Language: " << renderInfo.shadingLanguageName << std::endl;
+    const auto &supportedShadingLanguages = renderSystem->GetRenderingCaps().shadingLanguages;
+    std::cout << "Shading-Languages: ";
+    for (const auto &shadingLanguage: supportedShadingLanguages) {
+        std::cout << LLGL::ToString(shadingLanguage) << " ";
+    }
+    std::cout << std::endl;
 
     // Set window title and show window
     auto &window = LLGL::CastTo<LLGL::Window>(renderContext->GetSurface());
@@ -78,18 +92,39 @@ void RunEngine() {
     // Setup ShaderProgram
     LLGL::ShaderProgram *shaderProgram;
     {
-        LLGL::Shader *vertexShader = ShaderUtil::LoadSpirVShader(engineResources, "/triangle.vert.spv",
-                                                                 renderSystem,
-                                                                 LLGL::ShaderType::Vertex,
-                                                                 vertexFormat
-        );
+        LLGL::Shader *vertexShader, *fragmentShader;
+        if (ShaderUtil::IsSupported(renderSystem, LLGL::ShadingLanguage::SPIRV)) {
+            vertexShader = ShaderUtil::LoadSpirVShader(engineResources, "/triangle.vert.spv",
+                                                       renderSystem,
+                                                       LLGL::ShaderType::Vertex,
+                                                       vertexFormat
+            );
 
-        LLGL::Shader *fragmentShader = ShaderUtil::LoadSpirVShader(engineResources,
-                                                                   "/triangle.frag.spv",
-                                                                   renderSystem,
-                                                                   LLGL::ShaderType::Fragment,
-                                                                   vertexFormat
-        );
+            fragmentShader = ShaderUtil::LoadSpirVShader(engineResources,
+                                                         "/triangle.hlsl",
+                                                         renderSystem,
+                                                         LLGL::ShaderType::Fragment,
+                                                         vertexFormat
+            );
+        } else {
+            vertexShader = ShaderUtil::LoadHLSLShader(engineResources,
+                                                      "/triangle.vert.hlsl.cso",
+                                                      renderSystem,
+                                                      LLGL::ShaderType::Vertex,
+                                                      vertexFormat,
+                                                      "VS",
+                                                      "vs_4_0"
+            );
+
+            fragmentShader = ShaderUtil::LoadHLSLShader(engineResources,
+                                                        "/triangle.frag.hlsl.cso",
+                                                        renderSystem,
+                                                        LLGL::ShaderType::Fragment,
+                                                        vertexFormat,
+                                                        "PS",
+                                                        "ps_4_0"
+            );
+        }
 
         shaderProgram = ShaderUtil::CreateShaderProgram(
                 renderSystem,

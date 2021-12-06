@@ -27,6 +27,11 @@ static constexpr const char *Error_Handling_file_name_r_slant_f(const char *str)
 
 #define Error_Handling_FILENAME Error_Handling_file_name_r_slant_f(__FILE__) ? Error_Handling_file_name_r_slant_f(Error_Handling_file_name_str_end(__FILE__)) : __FILE__
 
+#ifdef _MSC_VER
+#define Error_Handling_Function __FUNCTION__
+#else
+#define Error_Handling_Function __PRETTY_FUNCTION__
+#endif
 
 std::string ErrorHandling_str_indent(const char *cstr);
 
@@ -36,7 +41,7 @@ std::string ErrorHandling_str_indent(const char *cstr);
  *
  * The macro throws the exception while incorporating information about the calling context into the exception.
  */
-#define RAISE_EXCEPTION(ExceptionType, message) throw ExceptionType(__PRETTY_FUNCTION__, Error_Handling_FILENAME, __LINE__, std::string(message).c_str())
+#define RAISE_EXCEPTION(ExceptionType, message) throw ExceptionType(Error_Handling_Function, Error_Handling_FILENAME, __LINE__, std::string(message).c_str())
 
 
 /**
@@ -47,7 +52,7 @@ std::string ErrorHandling_str_indent(const char *cstr);
  * The macro throws the exception while incorporating information about the calling context into the exception,
  * as well as information about the exception's cause.
  */
-#define RAISE_EXCEPTION_CAUSED_BY(ExceptionType, message, cause) throw ExceptionType(__PRETTY_FUNCTION__, Error_Handling_FILENAME, __LINE__, (std::string(message) + "\n\n\tCaused By: " + ErrorHandling_str_indent((cause).what())).c_str())
+#define RAISE_EXCEPTION_CAUSED_BY(ExceptionType, message, cause) throw ExceptionType(Error_Handling_Function, Error_Handling_FILENAME, __LINE__, (std::string(message) + "\n\n\tCaused By: " + ErrorHandling_str_indent((cause).what())).c_str())
 
 namespace errorhandling {
 

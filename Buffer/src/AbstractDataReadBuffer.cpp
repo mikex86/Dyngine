@@ -1,4 +1,5 @@
 #include <Buffer/AbstractDataReadBuffer.hpp>
+#include <vector>
 
 using namespace buffer;
 
@@ -73,13 +74,14 @@ int64_t AbstractDataReadBuffer::readInt64() {
 
 std::string AbstractDataReadBuffer::readString() {
     uint64_t length = readInt64();
-    char cstr[length + 1];
+    std::vector<char> buffer;
+    buffer.reserve(length);
     for (uint64_t i = 0; i < length; i++) {
         char character = static_cast<char>(readUint8());
-        cstr[i] = character;
+        buffer.push_back(character);
     }
-    cstr[length] = '\0';
-    return {cstr};
+    buffer.push_back('\0');
+    return {buffer.data()};
 }
 
 AbstractDataReadBuffer::AbstractDataReadBuffer(uint64_t size, uint64_t position) : size(size), position(position) {
