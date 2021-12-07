@@ -1,6 +1,6 @@
 #include "ShaderUtil.hpp"
 #include <ErrorHandling/IllegalStateException.hpp>
-#include <Dyngine_internal.h>
+#include <Dyngine_internal.hpp>
 
 namespace ShaderUtil {
 

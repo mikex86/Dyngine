@@ -55,6 +55,9 @@ if (${LLGL_GRAPHICS_API} MATCHES "Vulkan")
 elseif (${LLGL_GRAPHICS_API} MATCHES "Direct3D12")
     set(LLGL_BUILD_RENDERER_DIRECT3D12 ON)
     target_compile_definitions(Dyngine PRIVATE DYNGINE_USE_DIRECT3D12_API)
+elseif (${LLGL_GRAPHICS_API} MATCHES "Direct3D11")
+    set(LLGL_BUILD_RENDERER_DIRECT3D11 ON)
+    target_compile_definitions(Dyngine PRIVATE DYNGINE_USE_DIRECT3D11_API)
 endif ()
 
 add_subdirectory("${CMAKE_SOURCE_DIR}/libraries/LLGL")
@@ -63,6 +66,8 @@ add_subdirectory("${CMAKE_SOURCE_DIR}/libraries/LLGL")
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     if (${LLGL_GRAPHICS_API} MATCHES "Vulkan")
         target_compile_options(LLGL_Direct3D12 PRIVATE -Wno-switch)
+    elseif (${LLGL_GRAPHICS_API} MATCHES "Direct3D11")
+        target_compile_options(LLGL_Direct3D11 PRIVATE -Wno-address-of-temporary -Wno-class-conversion -Wno-switch)
     elseif (${LLGL_GRAPHICS_API} MATCHES "Direct3D12")
         # Disable warning about taking the address of a temporary variable in Clang
         # The use cases in LLGL are perfectly safe

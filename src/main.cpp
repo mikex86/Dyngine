@@ -1,4 +1,4 @@
-#include <Dyngine_internal.h>
+#include <Dyngine_internal.hpp>
 #include <LLGL/LLGL.h>
 #include <Dpac/Dpac.hpp>
 #include "Shader/ShaderUtil.hpp"
@@ -19,6 +19,10 @@ std::shared_ptr<LLGL::RenderSystem> setupRenderSystem() {
 #ifdef DYNGINE_USE_DIRECT3D12_API
     // Renderer configuration
     renderSystemDescriptor.moduleName = "Direct3D12";
+#endif
+#ifdef DYNGINE_USE_DIRECT3D11_API
+    // Renderer configuration
+    renderSystemDescriptor.moduleName = "Direct3D11";
 #endif
     return LLGL::RenderSystem::Load(renderSystemDescriptor);
 }
