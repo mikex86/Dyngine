@@ -42,47 +42,17 @@ target_link_libraries(Dyngine PRIVATE Dyngine_Dpac)
 # Dpac CLI tools
 add_subdirectory("${CMAKE_SOURCE_DIR}/DpacTools")
 
+add_subdirectory("${CMAKE_SOURCE_DIR}/RenderLib")
+
 # Reset the executable and library output path (changed by DpacTools submodule)
 set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
 set(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
 
-# Low Level Graphics Library
-set(LLGL_GRAPHICS_API Direct3D12)
+# GLFW
+add_subdirectory("${CMAKE_SOURCE_DIR}/libraries/glfw")
 
-if (${LLGL_GRAPHICS_API} MATCHES "Vulkan")
-    target_compile_definitions(Dyngine PRIVATE DYNGINE_USE_VULKAN_API)
-    set(LLGL_BUILD_RENDERER_VULKAN ON) # Vulkan SDK required
-elseif (${LLGL_GRAPHICS_API} MATCHES "Direct3D12")
-    set(LLGL_BUILD_RENDERER_DIRECT3D12 ON)
-    target_compile_definitions(Dyngine PRIVATE DYNGINE_USE_DIRECT3D12_API)
-elseif (${LLGL_GRAPHICS_API} MATCHES "Direct3D11")
-    set(LLGL_BUILD_RENDERER_DIRECT3D11 ON)
-    target_compile_definitions(Dyngine PRIVATE DYNGINE_USE_DIRECT3D11_API)
-endif ()
-
-add_subdirectory("${CMAKE_SOURCE_DIR}/libraries/LLGL")
-
-# Disable warnings and errors on CLANG
-if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    if (${LLGL_GRAPHICS_API} MATCHES "Vulkan")
-        target_compile_options(LLGL_Direct3D12 PRIVATE -Wno-switch)
-    elseif (${LLGL_GRAPHICS_API} MATCHES "Direct3D11")
-        target_compile_options(LLGL_Direct3D11 PRIVATE -Wno-address-of-temporary -Wno-class-conversion -Wno-switch)
-    elseif (${LLGL_GRAPHICS_API} MATCHES "Direct3D12")
-        # Disable warning about taking the address of a temporary variable in Clang
-        # The use cases in LLGL are perfectly safe
-        target_compile_options(LLGL_Direct3D12 PRIVATE -Wno-address-of-temporary -Wno-class-conversion -Wno-switch)
-    endif ()
-endif ()
-
-# Reset the executable and library output path (changed by LLGL submodule)
-set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
-set(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
-
-add_compile_definitions(LLGL_ENABLE_UTILITY) # Enable the Utility functions
-
-# Link to LLGL library
-target_link_libraries(Dyngine PUBLIC LLGL LLGL_${LLGL_GRAPHICS_API})
+# Link to RenderLib
+target_link_libraries(Dyngine PRIVATE Dyngine_RenderLib)
 
 # Build Engine Resources
 
@@ -195,23 +165,4 @@ add_custom_command(
 )
 add_custom_target(Dyngine_PackageResources ALL DEPENDS "${ENGINE_RESOURCE_PACKAGE}")
 add_dependencies(Dyngine_PackageResources DpacDeflate)
-
-# Setup Working Directory
-# Copy library files
-if (${CMAKE_BUILD_TYPE} MATCHES "Debug")
-    set(LLGL_LIBRARY_POST_FIX "D")
-else ()
-    set(LLGL_LIBRARY_POST_FIX "")
-endif ()
-set(LLGL_LIBRARY_FILES "${CMAKE_BINARY_DIR}/libraries/LLGL/build/LLGL${LLGL_LIBRARY_POST_FIX}.dll;${CMAKE_BINARY_DIR}/libraries/LLGL/build/LLGL_${LLGL_GRAPHICS_API}${LLGL_LIBRARY_POST_FIX}.dll;")
-add_custom_command(
-        COMMAND
-        ${CMAKE_COMMAND} -E copy_if_different ${LLGL_LIBRARY_FILES} ${ENGINE_WORKING_DIRECTORY}
-        DEPENDS "${ENGINE_WORKING_DIRECTORY}" LLGL LLGL_${LLGL_GRAPHICS_API}
-        COMMENT "Copying LLGL libraries to working directory"
-        OUTPUT "LLGL_LIB_COPY"
-)
-
-add_custom_target(Dyngine_SetupWorkingDirectory ALL DEPENDS Dyngine_PackageResources LLGL_LIB_COPY)
-
-add_dependencies(Dyngine Dyngine_SetupWorkingDirectory)
+add_dependencies(Dyngine Dyngine_PackageResources)
