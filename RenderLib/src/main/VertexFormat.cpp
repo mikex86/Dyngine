@@ -29,8 +29,7 @@ namespace RenderLib {
         if (attributes.empty()) {
             return 0;
         }
-        return attributes.back().getOffset() +
-               GetAttributeTypeSize(attributes.back().getDataType());
+        return attributes.back().getOffset() + GetAttributeTypeSize(attributes.back().getDataType());
     }
 
     const std::string &VertexAttribute::getName() const {

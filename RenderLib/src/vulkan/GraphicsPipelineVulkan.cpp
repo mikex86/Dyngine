@@ -246,7 +246,7 @@ namespace RenderLib {
     }
 
     static VkDescriptorSetLayout
-    MakeDescriptorSetLayout(VkDevice vkDevice, const std::vector<VkDescriptorSetLayoutBinding> &bindings) {
+    CreateDescriptorSetLayout(VkDevice vkDevice, const std::vector<VkDescriptorSetLayoutBinding> &bindings) {
         VkDescriptorSetLayoutCreateInfo layoutInfo{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
                 .bindingCount = static_cast<uint32_t>(bindings.size()),
@@ -258,7 +258,7 @@ namespace RenderLib {
         return descriptorSetLayout;
     }
 
-    static VkPipelineLayout MakePipelineLayout(VkDevice vkDevice, const PipelineLayout &layout) {
+    static VkPipelineLayout CreatePipelineLayout(VkDevice vkDevice, const PipelineLayout &layout) {
         const auto &uniformDescriptors = layout.uniformDescriptors;
         uint32_t binding = 0;
         auto descriptorSetLayouts = std::vector<VkDescriptorSetLayoutBinding>{};
@@ -269,7 +269,7 @@ namespace RenderLib {
             descriptorSetLayouts.push_back(descriptorSetLayoutBinding);
             binding++;
         }
-        auto descriptorSetLayout = MakeDescriptorSetLayout(vkDevice, descriptorSetLayouts);
+        auto descriptorSetLayout = CreateDescriptorSetLayout(vkDevice, descriptorSetLayouts);
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
                 .setLayoutCount = 1,
@@ -297,53 +297,6 @@ namespace RenderLib {
         return vertexInputBindingDescriptions;
     }
 
-    static VkAttachmentReference MakeColorAttachmentRef() {
-        return VkAttachmentReference{
-                .attachment = 0,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        };
-    }
-
-    static VkAttachmentDescription MakeColorAttachment(VkFormat imageFormat) {
-        return VkAttachmentDescription{
-                .format = imageFormat,
-                .samples = VK_SAMPLE_COUNT_1_BIT, // Multi-sampling is not used (for now)
-                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, // Clear framebuffer before rendering
-                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-        };
-    }
-
-    static VkRenderPass
-    MakeRenderPass(VkDevice vkDevice, const VkAttachmentReference &colorAttachmentRef,
-                   const VkAttachmentDescription &colorAttachment) {
-
-        VkSubpassDescription subPasses{
-                .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                .colorAttachmentCount = 1,
-                .pColorAttachments = &colorAttachmentRef
-        };
-
-        VkRenderPassCreateInfo renderPassInfo{
-                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-                .attachmentCount = 1,
-                .pAttachments = &colorAttachment,
-                .subpassCount = 1,
-                .pSubpasses = &subPasses,
-                .dependencyCount = 0,
-                .pDependencies = nullptr
-        };
-        VkRenderPass vkRenderPass;
-        VULKAN_STATUS_VALIDATE(
-                vkCreateRenderPass(vkDevice, &renderPassInfo, nullptr, &vkRenderPass),
-                "Failed to create render pass"
-        );
-        return vkRenderPass;
-    }
-
     std::shared_ptr<GraphicsPipeline>
     CreateGraphicsPipeline(const std::shared_ptr<RenderLib::RenderContext> &renderContext,
                            const VertexFormat &vertexFormat,
@@ -364,19 +317,14 @@ namespace RenderLib {
         auto vertexInputInfo = GetVertexInputStateCreateInfo(vertexFormat, vertexInputBindingDescriptions,
                                                              vertexAttributeDescriptions);
 
-        auto viewportExtent = vulkanRenderContext->swapChain->swapChainExtent;
+        auto viewportExtent = vulkanRenderContext->vulkanSwapChain->swapChainExtent;
         auto viewport = MakeViewPort(viewportExtent);
         auto scissor = MakeScissor(viewportExtent);
         auto viewportStateCreateInfo = MakeViewportStateCreateInfo(viewportExtent, viewport, scissor);
         auto rasterizationStateCreateInfo = MakeRasterizationInfo();
         auto colorBlendStateCreateInfo = MakeColorBlendStateCreateInfo();
         auto multisampleStateCreateInfo = MakeMultisampleStateCreateInfo();
-        auto vkPipelineLayout = MakePipelineLayout(vulkanRenderContext->vkDevice, pipelineLayout);
-
-        auto colorAttachment = MakeColorAttachment(vulkanRenderContext->swapChain->swapChainImageFormat);
-        auto colorAttachmentRef = MakeColorAttachmentRef();
-
-        auto renderPass = MakeRenderPass(vulkanRenderContext->vkDevice, colorAttachmentRef, colorAttachment);
+        auto vkPipelineLayout = CreatePipelineLayout(vulkanRenderContext->vkDevice, pipelineLayout);
 
         VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
                 .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -391,7 +339,7 @@ namespace RenderLib {
                 .pColorBlendState = &colorBlendStateCreateInfo,
                 .pDynamicState = nullptr,
                 .layout = vkPipelineLayout,
-                .renderPass = renderPass,
+                .renderPass = vulkanRenderContext->vkRenderPass,
                 .subpass = 0,
                 .basePipelineHandle = VK_NULL_HANDLE,
                 .basePipelineIndex = -1
@@ -411,13 +359,21 @@ namespace RenderLib {
                 "Failed to create graphics pipeline."
         );
 
-        auto graphicsPipeline = new VulkanGraphicsPipeline{};
-        {
-            graphicsPipeline->vulkanRenderContext = vulkanRenderContext;
-            graphicsPipeline->vkPipeline = vkPipeline;
-            graphicsPipeline->vkPipelineLayout = vkPipelineLayout;
-            graphicsPipeline->vkRenderPass = renderPass;
-        }
-        return std::shared_ptr<GraphicsPipeline>(graphicsPipeline);
+        return std::shared_ptr<GraphicsPipeline>(
+                new VulkanGraphicsPipeline(vulkanRenderContext, vkPipeline, vkPipelineLayout)
+        );
+    }
+
+    VulkanGraphicsPipeline::VulkanGraphicsPipeline(std::shared_ptr<VulkanRenderContext> vulkanRenderContext,
+                                                   VkPipeline vkPipeline, VkPipelineLayout vkPipelineLayout)
+            : GraphicsPipeline(VULKAN),
+              vulkanRenderContext(std::move(vulkanRenderContext)),
+              vkPipeline(vkPipeline),
+              vkPipelineLayout(vkPipelineLayout) {}
+
+    VulkanGraphicsPipeline::~VulkanGraphicsPipeline() {
+        vkDestroyPipeline(vulkanRenderContext->vkDevice, vkPipeline, nullptr);
+        vkDestroyPipelineLayout(vulkanRenderContext->vkDevice, vkPipelineLayout, nullptr);
+        vulkanRenderContext = nullptr;
     }
 }

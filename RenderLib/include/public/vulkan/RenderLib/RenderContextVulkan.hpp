@@ -1,6 +1,6 @@
 #pragma once
 
-#include <RenderLib/ContextManagement.hpp>
+#include <RenderLib/RenderContext.hpp>
 #include <ErrorHandling/ErrorHandling.hpp>
 #include <string>
 #include <vector>

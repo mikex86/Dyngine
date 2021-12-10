@@ -6,6 +6,8 @@
 
 namespace RenderLib {
 
+    struct Window;
+
     enum RenderSystemBackend {
         VULKAN
     };
@@ -30,28 +32,27 @@ namespace RenderLib {
         std::string deviceName;
         bool isDiscreteGpu;
         uint64_t capability;
+
+        virtual ~RenderDevice();
     };
+
+    struct CommandBuffer;
 
     struct RenderContext {
-        RenderSystemBackend backend{};
-
-        virtual ~RenderContext() = default;
-    };
-
-    class Window {
 
     public:
-        RenderSystemBackend backend;
+        RenderSystemBackend backend{};
 
-        explicit Window(RenderSystemBackend backend);
+        virtual void beginFrame() = 0;
 
-        virtual void show() = 0;
+        virtual void drawFrame(const std::shared_ptr<RenderLib::CommandBuffer> &commandBuffer) = 0;
 
-        virtual void update() = 0;
+        virtual void endFrame() = 0;
 
-        virtual void close() = 0;
+        virtual void synchronize() = 0;
 
-        virtual bool shouldClose() = 0;
+        virtual ~RenderContext() = default;
+
     };
 
     [[nodiscard]] std::shared_ptr<RenderSystem>
@@ -80,18 +81,7 @@ namespace RenderLib {
      * @return
      */
     [[nodiscard]] std::shared_ptr<RenderContext>
-    CreateRenderContext(const std::shared_ptr<Window>& window, const std::shared_ptr<RenderSystem>& renderSystem,
-                        const std::shared_ptr<RenderDevice>& renderDevice);
-
-    /**
-     *
-     * @brief Create a window
-     * @param renderContext the context to use for rendering window contents
-     * @param title the title of the window
-     * @param width the width of the window
-     * @param height the height of the window
-     * @return the created Window
-     */
-    std::shared_ptr<Window> CreateNewWindow(const std::string &title, int width, int height);
+    CreateRenderContext(const std::shared_ptr<Window> &window, const std::shared_ptr<RenderSystem> &renderSystem,
+                        const std::shared_ptr<RenderDevice> &renderDevice);
 
 }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ErrorHandling/IllegalStateException.hpp>
-#include <RenderLib/ContextManagementVulkan.hpp>
+#include <RenderLib/RenderContextVulkan.hpp>
 #include <vulkan/vulkan.h>
 #include <string>
 #include <unordered_set>
@@ -12,13 +12,13 @@
 #define ENSURE_VULKAN_BACKEND_PTR(handle) \
     if ((handle)->backend != RenderSystemBackend::VULKAN) \
     RAISE_EXCEPTION(errorhandling::IllegalStateException, \
-                    std::string("Handle"  #handle  " has an unexpected backend: ") + \
+                    std::string("Handle "  #handle  " has an unexpected backend: ") + \
                     GetRenderSystemBackendName((handle)->backend) + ", should be Vulkan instead!")
 
 #define ENSURE_VULKAN_BACKEND(handle) \
     if ((handle).backend != RenderSystemBackend::VULKAN) \
     RAISE_EXCEPTION(errorhandling::IllegalStateException, \
-                    std::string("Handle" #handle " has an unexpected backend: ") + \
+                    std::string("Handle " #handle " has an unexpected backend: ") + \
                     GetRenderSystemBackendName((handle).backend) + ", should be Vulkan instead!")
 #else
 #define ENSURE_VULKAN_BACKEND_PTR(renderSystem)
@@ -77,19 +77,39 @@ namespace RenderLib {
         virtual ~VulkanSwapChain();
     };
 
+    struct VulkanCommandBuffer;
+
     struct VulkanRenderContext : public RenderContext {
 
+    public:
         VkInstance vkInstance;
         VkDevice vkDevice;
         VkSurfaceKHR vkSurface;
+        VkRenderPass vkRenderPass;
+        VkCommandPool vkCommandPool;
         VkQueue graphicsQueue;
         VkQueue presentQueue;
         VkQueue computeQueue;
+        VkSemaphore imageAvailableSemaphore;
+        VkSemaphore renderFinishedSemaphore;
+        std::shared_ptr<VulkanSwapChain> vulkanSwapChain;
 
-        std::shared_ptr<VulkanSwapChain> swapChain;
+        uint32_t currentImageIndex;
+
+        void beginFrame() override;
+
+        void drawFrame(const std::shared_ptr<RenderLib::CommandBuffer> &commandBuffer) override;
+
+        void endFrame() override;
+
+        void synchronize() override;
 
         ~VulkanRenderContext() override;
-        
+
+    private:
+        void submitCommandBuffer(const std::shared_ptr<VulkanCommandBuffer> &commandBuffer);
+
+        [[nodiscard]] uint32_t acquireNextImage() const;
     };
 
     struct VulkanQueueFamilyIndices {

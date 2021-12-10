@@ -9,7 +9,7 @@ namespace RenderLib {
                           const uint8_t *shaderBinaryContent,
                           size_t shaderBinaryContentSize, ShaderType shaderType) {
         ENSURE_VULKAN_BACKEND_PTR(renderContext);
-        auto vulkanRenderContext = std::reinterpret_pointer_cast<VulkanRenderContext>(renderContext);
+        auto vulkanRenderContext = std::dynamic_pointer_cast<VulkanRenderContext>(renderContext);
         VkShaderModule vkShaderModule;
         {
             VkShaderModuleCreateInfo createInfo{
@@ -44,7 +44,7 @@ namespace RenderLib {
     CreateShaderProgram(const std::shared_ptr<RenderLib::RenderContext> &renderContext,
                         const std::map<ShaderType, Shader *> &shaders) {
         ENSURE_VULKAN_BACKEND_PTR(renderContext);
-        auto vulkanRenderContext = std::reinterpret_pointer_cast<VulkanRenderContext>(renderContext);
+        auto vulkanRenderContext = std::dynamic_pointer_cast<VulkanRenderContext>(renderContext);
         std::vector<VkPipelineShaderStageCreateInfo> shaderStageCreateInfos;
         for (const auto &item: shaders) {
             auto shaderType = item.first;

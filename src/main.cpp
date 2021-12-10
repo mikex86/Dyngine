@@ -1,5 +1,5 @@
 #include <RenderLib/RenderLib.hpp>
-#include <RenderLib/ContextManagementVulkan.hpp>
+#include <RenderLib/RenderContextVulkan.hpp>
 #include <Dyngine_internal.hpp>
 #include <Shader/ShaderUtil.hpp>
 #include <iostream>
@@ -62,16 +62,7 @@ int RunEngine() {
         vertexFormat.appendAttribute("color", RenderLib::VertexAttributeType::UBYTE_VEC4);
     }
 
-    auto pipelineLayout = RenderLib::PipelineLayout{
-            .uniformDescriptors = {
-                    {
-                            .elementCount = 1,
-                            .acceptingShaderTypes = {
-                                    RenderLib::ShaderType::FRAGMENT_SHADER
-                            }
-                    }
-            }
-    };
+    auto pipelineLayout = RenderLib::PipelineLayout{};
     auto graphicsPipeline = RenderLib::CreateGraphicsPipeline(
             renderContext,
             vertexFormat,
@@ -79,11 +70,28 @@ int RunEngine() {
             shaderProgram
     );
 
+    auto frameBuffer = RenderLib::CreateFrameBuffer(renderContext);
+    auto commandBuffer = RenderLib::CreateCommandBuffer(frameBuffer);
+
     window->show();
 
     while (!window->shouldClose()) {
+        renderContext->beginFrame();
+        {
+            commandBuffer->begin();
+            {
+                commandBuffer->beginRenderPass();
+                commandBuffer->bindGraphicsPipeline(graphicsPipeline);
+                commandBuffer->endRenderPass();
+            }
+            commandBuffer->end();
+        }
+        renderContext->drawFrame(commandBuffer);
+        renderContext->endFrame();
+        renderContext->synchronize();
         window->update();
     }
+
     window->close();
     return 0;
 }

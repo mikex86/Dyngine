@@ -1,6 +1,6 @@
 #pragma once
 
-#include <RenderLib/ContextManagementVulkan_Internal.hpp>
+#include <RenderLib/Windowing.hpp>
 #include <GLFW/glfw3.h>
 
 namespace RenderLib {

@@ -7,6 +7,12 @@
 namespace RenderLib {
 
     struct GraphicsPipeline {
+    public:
+        RenderSystemBackend backend;
+
+        explicit GraphicsPipeline(RenderSystemBackend backend);
+
+        virtual ~GraphicsPipeline();
     };
 
     /**

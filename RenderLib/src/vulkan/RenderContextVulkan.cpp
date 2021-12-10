@@ -1,4 +1,6 @@
+#include <RenderLib/RenderContextVulkan_Internal.hpp>
 #include <RenderLib/GLFWWindow_Internal.hpp>
+#include <RenderLib/CommandBufferVulkan_Internal.hpp>
 #include <unordered_set>
 #include <optional>
 #include <algorithm>
@@ -106,7 +108,7 @@ namespace RenderLib {
     std::vector<std::shared_ptr<RenderDevice>> GetRenderDevices(const std::shared_ptr<RenderSystem> &renderSystem) {
         ENSURE_VULKAN_BACKEND_PTR(renderSystem);
 
-        auto vkRenderSystem = std::reinterpret_pointer_cast<VulkanRenderSystem>(renderSystem);
+        auto vkRenderSystem = std::dynamic_pointer_cast<VulkanRenderSystem>(renderSystem);
         uint32_t numPhysicalDevices{};
         vkEnumeratePhysicalDevices(vkRenderSystem->vkInstance,
                                    &numPhysicalDevices, nullptr);
@@ -120,10 +122,9 @@ namespace RenderLib {
             VkPhysicalDeviceProperties deviceProperties{};
             vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
             uint64_t computeCapability = GetComputeCapability(deviceProperties);
-            auto *device = new VulkanRenderDevice{
-                    .vkPhysicalDevice = physicalDevice
-            };
+            auto *device = new VulkanRenderDevice{};
             {
+                device->vkPhysicalDevice = physicalDevice;
                 device->deviceName = std::string(deviceProperties.deviceName),
                 device->isDiscreteGpu = deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
                 device->capability = computeCapability;
@@ -135,7 +136,7 @@ namespace RenderLib {
 
     std::shared_ptr<RenderDevice> GetBestRenderDevice(const std::shared_ptr<RenderSystem> &renderSystem) {
         ENSURE_VULKAN_BACKEND_PTR(renderSystem);
-        auto vulkanRenderSystem = std::reinterpret_pointer_cast<VulkanRenderSystem>(renderSystem);
+        auto vulkanRenderSystem = std::dynamic_pointer_cast<VulkanRenderSystem>(renderSystem);
 
         std::vector<std::shared_ptr<RenderDevice>> devices = GetRenderDevices(renderSystem);
         if (devices.empty()) {
@@ -145,7 +146,7 @@ namespace RenderLib {
         auto deviceExtensions = vulkanRenderSystem->deviceExtensions;
         for (const auto &device: devices) {
             if (bestDevice == nullptr || device->capability > bestDevice->capability) {
-                auto vulkanRenderDevice = std::reinterpret_pointer_cast<VulkanRenderDevice>(device);
+                auto vulkanRenderDevice = std::dynamic_pointer_cast<VulkanRenderDevice>(device);
                 if (!DeviceSupportsExtension(vulkanRenderDevice->vkPhysicalDevice, deviceExtensions)) {
                     continue;
                 }
@@ -312,7 +313,8 @@ namespace RenderLib {
     }
 
     static VkExtent2D
-    ChooseExtent(const std::shared_ptr<GLFWWindowImpl> &window, const VulkanSwapChainSupportDetails &swapChainSupportDetails) {
+    ChooseExtent(const std::shared_ptr<GLFWWindowImpl> &window,
+                 const VulkanSwapChainSupportDetails &swapChainSupportDetails) {
         auto capabilities = swapChainSupportDetails.surfaceCapabilities;
         if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
             return capabilities.currentExtent;
@@ -369,11 +371,11 @@ namespace RenderLib {
         };
     }
 
-    static std::vector<VkImage> GetSwapChainImages(VkDevice vkDevice, VkSwapchainKHR vkSwapChainKHR) {
+    static std::vector<VkImage> GetSwapChainImages(VkDevice vkDevice, VkSwapchainKHR vkSwapChain) {
         uint32_t imageCount = 0;
-        vkGetSwapchainImagesKHR(vkDevice, vkSwapChainKHR, &imageCount, nullptr);
+        vkGetSwapchainImagesKHR(vkDevice, vkSwapChain, &imageCount, nullptr);
         std::vector<VkImage> swapChainImages(imageCount);
-        vkGetSwapchainImagesKHR(vkDevice, vkSwapChainKHR, &imageCount, swapChainImages.data());
+        vkGetSwapchainImagesKHR(vkDevice, vkSwapChain, &imageCount, swapChainImages.data());
         return swapChainImages;
     }
 
@@ -408,6 +410,63 @@ namespace RenderLib {
         return swapChainImageViews;
     }
 
+
+    static VkAttachmentReference MakeColorAttachmentRef() {
+        return VkAttachmentReference{
+                .attachment = 0,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        };
+    }
+
+    static VkAttachmentDescription MakeColorAttachment(VkFormat imageFormat) {
+        return VkAttachmentDescription{
+                .format = imageFormat,
+                .samples = VK_SAMPLE_COUNT_1_BIT, // Multi-sampling is not used (for now)
+                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, // Clear framebuffer before rendering
+                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        };
+    }
+
+    static VkRenderPass
+    CreateRenderPass(VkDevice vkDevice, const VkAttachmentReference &colorAttachmentRef,
+                     const VkAttachmentDescription &colorAttachment) {
+
+        VkSubpassDescription subPasses{
+                .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                .colorAttachmentCount = 1,
+                .pColorAttachments = &colorAttachmentRef
+        };
+
+        VkSubpassDependency dependency{
+                .srcSubpass = VK_SUBPASS_EXTERNAL,
+                .dstSubpass = 0,
+                .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .srcAccessMask = 0,
+                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        };
+
+        VkRenderPassCreateInfo renderPassInfo{
+                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+                .attachmentCount = 1,
+                .pAttachments = &colorAttachment,
+                .subpassCount = 1,
+                .pSubpasses = &subPasses,
+                .dependencyCount = 1,
+                .pDependencies = &dependency
+        };
+        VkRenderPass vkRenderPass;
+        VULKAN_STATUS_VALIDATE(
+                vkCreateRenderPass(vkDevice, &renderPassInfo, nullptr, &vkRenderPass),
+                "Failed to create render pass"
+        );
+        return vkRenderPass;
+    }
+
     static std::shared_ptr<VulkanSwapChain> CreateSwapChain(const std::shared_ptr<GLFWWindowImpl> &window,
                                                             VkDevice vkDevice,
                                                             const std::shared_ptr<VulkanRenderDevice> &vulkanRenderDevice,
@@ -425,7 +484,9 @@ namespace RenderLib {
         auto extent = ChooseExtent(window, swapChainSupportDetails);
         uint32_t imageCount = GetImageCount(swapChainSupportDetails);
 
-        VkSwapchainCreateInfoKHR createInfo{
+        VkSwapchainKHR vkSwapChain;
+
+        VkSwapchainCreateInfoKHR swapChainCreateInfo{
                 .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
                 .surface = vkSurface,
                 .minImageCount = imageCount,
@@ -445,32 +506,33 @@ namespace RenderLib {
             RAISE_EXCEPTION(errorhandling::IllegalStateException, "No queue family indices found");
         }
         if (uniqueQueueFamilyIndices.size() == 1) {
-            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            createInfo.queueFamilyIndexCount = 0;
-            createInfo.pQueueFamilyIndices = nullptr;
+            swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            swapChainCreateInfo.queueFamilyIndexCount = 0;
+            swapChainCreateInfo.pQueueFamilyIndices = nullptr;
         } else {
-            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-            createInfo.queueFamilyIndexCount = static_cast<uint32_t>(uniqueQueueFamilyIndices.size());
-            createInfo.pQueueFamilyIndices = uniqueQueueFamilyIndices.data();
-        }
-        createInfo.preTransform = swapChainSupportDetails.surfaceCapabilities.currentTransform;
-        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        createInfo.presentMode = *presentMode;
-        createInfo.clipped = VK_TRUE;
-        createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-        VkSwapchainKHR vkSwapChainKhr;
-        if (vkCreateSwapchainKHR(vkDevice, &createInfo, nullptr, &vkSwapChainKhr) != VK_SUCCESS) {
-            RAISE_EXCEPTION(errorhandling::IllegalStateException, "Failed to create swap chain");
+            swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+            swapChainCreateInfo.queueFamilyIndexCount = static_cast<uint32_t>(uniqueQueueFamilyIndices.size());
+            swapChainCreateInfo.pQueueFamilyIndices = uniqueQueueFamilyIndices.data();
         }
 
-        auto swapChainImages = GetSwapChainImages(vkDevice, vkSwapChainKhr);
+        swapChainCreateInfo.preTransform = swapChainSupportDetails.surfaceCapabilities.currentTransform;
+        swapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        swapChainCreateInfo.presentMode = *presentMode;
+        swapChainCreateInfo.clipped = VK_TRUE;
+        swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+
+        VULKAN_STATUS_VALIDATE(
+                vkCreateSwapchainKHR(vkDevice, &swapChainCreateInfo, nullptr, &vkSwapChain),
+                "Failed to create swap chain"
+        );
+
+        auto swapChainImages = GetSwapChainImages(vkDevice, vkSwapChain);
         auto swapChainImageViews = CreateSwapChainImageViews(surfaceFormat->format, vkDevice, swapChainImages);
 
         auto swapChain = new VulkanSwapChain;
         {
             swapChain->vkDevice = vkDevice;
-            swapChain->vkSwapChain = vkSwapChainKhr;
+            swapChain->vkSwapChain = vkSwapChain;
             swapChain->swapChainImages = swapChainImages;
             swapChain->swapChainImageViews = swapChainImageViews;
             swapChain->swapChainExtent = extent;
@@ -479,16 +541,41 @@ namespace RenderLib {
         return std::shared_ptr<VulkanSwapChain>(swapChain);
     }
 
+    VkCommandPool CreateCommandPool(VkDevice vkDevice, const VulkanQueueFamilyIndices &queueFamilyIndices) {
+        VkCommandPoolCreateInfo createInfo{
+                .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+                .queueFamilyIndex = queueFamilyIndices.graphicsQueueFamilyIndex,
+        };
+
+        VkCommandPool vkCommandPool;
+        VULKAN_STATUS_VALIDATE(vkCreateCommandPool(vkDevice, &createInfo, nullptr, &vkCommandPool),
+                               "Failed to create command pool");
+        return vkCommandPool;
+    }
+
+    static VkSemaphore CreateSemaphore(VkDevice device) {
+        VkSemaphoreCreateInfo createInfo{
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+        };
+        VkSemaphore vkSemaphore;
+        VULKAN_STATUS_VALIDATE(
+                vkCreateSemaphore(device, &createInfo, nullptr, &vkSemaphore),
+                "Failed to create semaphore"
+        );
+        return vkSemaphore;
+    }
+
     std::shared_ptr<RenderContext>
     CreateRenderContext(const std::shared_ptr<Window> &window, const std::shared_ptr<RenderSystem> &renderSystem,
                         const std::shared_ptr<RenderDevice> &renderDevice) {
         ENSURE_VULKAN_BACKEND_PTR(renderSystem);
         ENSURE_VULKAN_BACKEND_PTR(window);
 
-        auto vulkanRenderSystem = std::reinterpret_pointer_cast<VulkanRenderSystem>(renderSystem);
-        auto vulkanRenderDevice = std::reinterpret_pointer_cast<VulkanRenderDevice>(renderDevice);
+        auto vulkanRenderSystem = std::dynamic_pointer_cast<VulkanRenderSystem>(renderSystem);
+        auto vulkanRenderDevice = std::dynamic_pointer_cast<VulkanRenderDevice>(renderDevice);
 
-        auto glfwWindow = std::reinterpret_pointer_cast<GLFWWindowImpl>(window);
+        auto glfwWindow = std::dynamic_pointer_cast<GLFWWindowImpl>(window);
 
         VkSurfaceKHR vkSurface;
         VULKAN_STATUS_VALIDATE(
@@ -518,16 +605,28 @@ namespace RenderLib {
                 vkSurface
         );
 
+        auto colorAttachment = MakeColorAttachment(swapChain->swapChainImageFormat);
+        auto colorAttachmentRef = MakeColorAttachmentRef();
+        auto renderPass = CreateRenderPass(vkDevice, colorAttachmentRef, colorAttachment);
+        auto commandPool = CreateCommandPool(vkDevice, queueFamilyIndices);
+
+        auto imageAvailableSemaphore = CreateSemaphore(vkDevice);
+        auto renderFinishedSemaphore = CreateSemaphore(vkDevice);
+
         auto vulkanRenderContext = new VulkanRenderContext;
         {
             vulkanRenderContext->backend = VULKAN;
             vulkanRenderContext->vkInstance = vulkanRenderSystem->vkInstance;
             vulkanRenderContext->vkDevice = vkDevice;
             vulkanRenderContext->vkSurface = vkSurface;
+            vulkanRenderContext->vkRenderPass = renderPass;
+            vulkanRenderContext->vkCommandPool = commandPool;
             vulkanRenderContext->graphicsQueue = graphicsQueue;
             vulkanRenderContext->presentQueue = presentQueue;
             vulkanRenderContext->computeQueue = computeQueue;
-            vulkanRenderContext->swapChain = swapChain;
+            vulkanRenderContext->vulkanSwapChain = swapChain;
+            vulkanRenderContext->imageAvailableSemaphore = imageAvailableSemaphore;
+            vulkanRenderContext->renderFinishedSemaphore = renderFinishedSemaphore;
         }
         return std::shared_ptr<VulkanRenderContext>(vulkanRenderContext);
     }
@@ -550,10 +649,74 @@ namespace RenderLib {
     Window::Window(RenderSystemBackend backend) : backend(backend) {}
 
     VulkanRenderContext::~VulkanRenderContext() {
-        swapChain = nullptr;
+        vulkanSwapChain = nullptr;
+        vkDestroySemaphore(vkDevice, imageAvailableSemaphore, nullptr);
+        vkDestroySemaphore(vkDevice, renderFinishedSemaphore, nullptr);
+        vkDestroyRenderPass(vkDevice, vkRenderPass, nullptr);
         vkDestroySurfaceKHR(vkInstance, vkSurface, nullptr);
+        vkDestroyCommandPool(vkDevice, vkCommandPool, nullptr);
         vkDestroyDevice(vkDevice, nullptr);
         vkDestroyInstance(vkInstance, nullptr);
+    }
+
+    uint32_t VulkanRenderContext::acquireNextImage() const {
+        uint32_t imageIndex;
+        {
+            vkAcquireNextImageKHR(vkDevice, vulkanSwapChain->vkSwapChain, std::numeric_limits<uint64_t>::max(),
+                                  imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+        }
+        return imageIndex;
+    }
+
+    void VulkanRenderContext::submitCommandBuffer(const std::shared_ptr<VulkanCommandBuffer> &commandBuffer) {
+        VkSemaphore waitSemaphores[] = {imageAvailableSemaphore};
+        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
+        VkSubmitInfo submitInfo{
+                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                .waitSemaphoreCount =1,
+                .pWaitSemaphores = waitSemaphores,
+                .pWaitDstStageMask = waitStages,
+                .commandBufferCount = 1,
+                .pCommandBuffers = &commandBuffer->commandBuffers[currentImageIndex],
+                .signalSemaphoreCount = 1,
+                .pSignalSemaphores = signalSemaphores
+        };
+        VULKAN_STATUS_VALIDATE(
+                vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE),
+                "Failed to submit command buffer"
+        );
+        VkSwapchainKHR swapChains[] = {vulkanSwapChain->vkSwapChain};
+        VkPresentInfoKHR presentInfo{
+                .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+                .waitSemaphoreCount = 1,
+                .pWaitSemaphores = signalSemaphores,
+                .swapchainCount = 1,
+                .pSwapchains = swapChains,
+                .pImageIndices = &currentImageIndex,
+                .pResults = nullptr
+        };
+        VULKAN_STATUS_VALIDATE(
+                vkQueuePresentKHR(presentQueue, &presentInfo),
+                "Failed to present swap chain image"
+        );
+    }
+
+    void VulkanRenderContext::beginFrame() {
+        currentImageIndex = acquireNextImage();
+    }
+
+    void VulkanRenderContext::drawFrame(const std::shared_ptr<CommandBuffer> &commandBuffer) {
+        ENSURE_VULKAN_BACKEND_PTR(commandBuffer);
+        auto vulkanCommandBuffer = std::dynamic_pointer_cast<VulkanCommandBuffer>(commandBuffer);
+        submitCommandBuffer(vulkanCommandBuffer);
+    }
+
+    void VulkanRenderContext::synchronize() {
+        vkDeviceWaitIdle(vkDevice);
+    }
+
+    void VulkanRenderContext::endFrame() {
     }
 
     VulkanSwapChain::~VulkanSwapChain() {
