@@ -280,6 +280,7 @@ namespace RenderLib {
                 vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout),
                 "Failed to create pipeline layout"
         );
+        vkDestroyDescriptorSetLayout(vkDevice, descriptorSetLayout, nullptr);
         return pipelineLayout;
     }
 
@@ -304,7 +305,7 @@ namespace RenderLib {
     }
 
     static VkAttachmentDescription MakeColorAttachment(VkFormat imageFormat) {
-        return VkAttachmentDescription {
+        return VkAttachmentDescription{
                 .format = imageFormat,
                 .samples = VK_SAMPLE_COUNT_1_BIT, // Multi-sampling is not used (for now)
                 .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, // Clear framebuffer before rendering
@@ -317,7 +318,8 @@ namespace RenderLib {
     }
 
     static VkRenderPass
-    MakeRenderPass(VkDevice vkDevice, const VkAttachmentReference &colorAttachmentRef, const VkAttachmentDescription &colorAttachment) {
+    MakeRenderPass(VkDevice vkDevice, const VkAttachmentReference &colorAttachmentRef,
+                   const VkAttachmentDescription &colorAttachment) {
 
         VkSubpassDescription subPasses{
                 .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -342,15 +344,16 @@ namespace RenderLib {
         return vkRenderPass;
     }
 
-    GraphicsPipeline *CreateGraphicsPipeline(const RenderLib::RenderContext *renderContext,
-                                             const VertexFormat &vertexFormat,
-                                             const PipelineLayout &pipelineLayout,
-                                             const std::shared_ptr<RenderLib::ShaderProgram> &shaderProgram) {
+    std::shared_ptr<GraphicsPipeline>
+    CreateGraphicsPipeline(const std::shared_ptr<RenderLib::RenderContext> &renderContext,
+                           const VertexFormat &vertexFormat,
+                           const PipelineLayout &pipelineLayout,
+                           const std::shared_ptr<RenderLib::ShaderProgram> &shaderProgram) {
         ENSURE_VULKAN_BACKEND_PTR(renderContext);
         ENSURE_VULKAN_BACKEND_PTR(shaderProgram);
 
-        auto vulkanRenderContext = dynamic_cast<const VulkanRenderContext *>(renderContext);
-        auto vulkanShaderProgram = dynamic_cast<const VulkanShaderProgram *>(shaderProgram.get());
+        auto vulkanRenderContext = std::dynamic_pointer_cast<VulkanRenderContext>(renderContext);
+        auto vulkanShaderProgram = std::dynamic_pointer_cast<VulkanShaderProgram>(shaderProgram);
 
         auto shaderStageCreateInfos = vulkanShaderProgram->shaderStageCreateInfos;
 
@@ -407,6 +410,14 @@ namespace RenderLib {
                 ),
                 "Failed to create graphics pipeline."
         );
-        return nullptr;
+
+        auto graphicsPipeline = new VulkanGraphicsPipeline{};
+        {
+            graphicsPipeline->vulkanRenderContext = vulkanRenderContext;
+            graphicsPipeline->vkPipeline = vkPipeline;
+            graphicsPipeline->vkPipelineLayout = vkPipelineLayout;
+            graphicsPipeline->vkRenderPass = renderPass;
+        }
+        return std::shared_ptr<GraphicsPipeline>(graphicsPipeline);
     }
 }

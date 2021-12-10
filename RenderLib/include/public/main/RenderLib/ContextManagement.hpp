@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace RenderLib {
 
@@ -53,21 +54,23 @@ namespace RenderLib {
         virtual bool shouldClose() = 0;
     };
 
-    [[nodiscard]] RenderSystem *CreateRenderSystem(const RenderSystemDescriptor &renderSystemDescriptor);
+    [[nodiscard]] std::shared_ptr<RenderSystem>
+    CreateRenderSystem(const RenderSystemDescriptor &renderSystemDescriptor);
 
     /**
      * @brief Get all available render devices
      * @param renderSystem the render system as context
      * @return the list of available render devices
      */
-    [[nodiscard]] std::vector<RenderDevice *> GetRenderDevices(RenderSystem *renderSystem);
+    [[nodiscard]] std::vector<std::shared_ptr<RenderDevice>>
+    GetRenderDevices(const std::shared_ptr<RenderSystem> &renderSystem);
 
     /**
      * @brief Returns the best render device which supports the required vulkan features ranked by their capability score
      * @param renderSystem the render system as context
      * @return the render device with the best capability
      */
-    [[nodiscard]] RenderDevice *GetBestRenderDevice(RenderSystem *renderSystem);
+    [[nodiscard]] std::shared_ptr<RenderDevice> GetBestRenderDevice(const std::shared_ptr<RenderSystem> &renderSystem);
 
     /**
      * @brief Create a render context for the specified window with the specified render device
@@ -76,8 +79,9 @@ namespace RenderLib {
      * @param renderDevice the device to use for rendering window contents
      * @return
      */
-    [[nodiscard]] RenderContext *
-    CreateRenderContext(Window *window, RenderSystem *renderSystem, RenderDevice *renderDevice);
+    [[nodiscard]] std::shared_ptr<RenderContext>
+    CreateRenderContext(const std::shared_ptr<Window>& window, const std::shared_ptr<RenderSystem>& renderSystem,
+                        const std::shared_ptr<RenderDevice>& renderDevice);
 
     /**
      *
@@ -88,6 +92,6 @@ namespace RenderLib {
      * @param height the height of the window
      * @return the created Window
      */
-    Window *CreateNewWindow(const std::string &title, int width, int height);
+    std::shared_ptr<Window> CreateNewWindow(const std::string &title, int width, int height);
 
 }

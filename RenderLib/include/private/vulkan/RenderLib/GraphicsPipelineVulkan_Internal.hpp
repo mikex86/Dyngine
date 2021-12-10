@@ -9,6 +9,17 @@ namespace RenderLib {
 
     struct VulkanGraphicsPipeline : public GraphicsPipeline {
     public:
+        std::shared_ptr<VulkanRenderContext> vulkanRenderContext;
+        VkPipeline vkPipeline;
+        VkPipelineLayout vkPipelineLayout;
+        VkRenderPass vkRenderPass;
+
+        virtual ~VulkanGraphicsPipeline() {
+            vkDestroyPipeline(vulkanRenderContext->vkDevice, vkPipeline, nullptr);
+            vkDestroyPipelineLayout(vulkanRenderContext->vkDevice, vkPipelineLayout, nullptr);
+            vkDestroyRenderPass(vulkanRenderContext->vkDevice, vkRenderPass, nullptr);
+            vulkanRenderContext = nullptr;
+        }
     };
 
 }

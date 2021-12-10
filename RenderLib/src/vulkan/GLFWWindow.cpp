@@ -1,4 +1,5 @@
 #include <RenderLib/GLFWWindow_Internal.hpp>
+#include <memory>
 #include "RenderLib/ContextManagementVulkan_Internal.hpp"
 
 
@@ -48,12 +49,12 @@ namespace RenderLib {
         return true;
     }
 
-    Window *CreateNewWindow(const std::string &title, int width, int height) {
+    std::shared_ptr<Window> CreateNewWindow(const std::string &title, int width, int height) {
         EnsureGlfwInitialized();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         GLFWwindow *glfwWindow = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
-        return new GLFWWindowImpl(glfwWindow);
+        return std::make_shared<GLFWWindowImpl>(glfwWindow);
     }
 
     std::string GetVulkanResultString(VkResult result) {

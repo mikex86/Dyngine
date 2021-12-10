@@ -33,9 +33,9 @@ namespace RenderLib {
 
     };
 
-    GraphicsPipeline *CreateGraphicsPipeline(const RenderLib::RenderContext *renderContext,
-                                             const VertexFormat &vertexFormat,
-                                             const PipelineLayout &pipelineLayout,
-                                             const std::shared_ptr<RenderLib::ShaderProgram> &shaderProgram);
+    std::shared_ptr<GraphicsPipeline> CreateGraphicsPipeline(const std::shared_ptr<RenderLib::RenderContext> &renderContext,
+                                                             const VertexFormat &vertexFormat,
+                                                             const PipelineLayout &pipelineLayout,
+                                                             const std::shared_ptr<RenderLib::ShaderProgram> &shaderProgram);
 
 }

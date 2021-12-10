@@ -1,13 +1,15 @@
 #include <RenderLib/ShaderUtilVulkan_Internal.hpp>
+#include <memory>
 #include <utility>
 
 namespace RenderLib {
 
-    Shader *
-    LoadPrecompiledShader(RenderLib::RenderContext *renderContext, const uint8_t *shaderBinaryContent,
+    std::shared_ptr<RenderLib::Shader>
+    LoadPrecompiledShader(const std::shared_ptr<RenderLib::RenderContext> &renderContext,
+                          const uint8_t *shaderBinaryContent,
                           size_t shaderBinaryContentSize, ShaderType shaderType) {
         ENSURE_VULKAN_BACKEND_PTR(renderContext);
-        auto vulkanRenderContext = reinterpret_cast<VulkanRenderContext *>(renderContext);
+        auto vulkanRenderContext = std::reinterpret_pointer_cast<VulkanRenderContext>(renderContext);
         VkShaderModule vkShaderModule;
         {
             VkShaderModuleCreateInfo createInfo{
@@ -20,7 +22,7 @@ namespace RenderLib {
                     "Failed to create shader module"
             );
         }
-        return new VulkanShader(shaderType, vulkanRenderContext->vkDevice, vkShaderModule);
+        return std::shared_ptr<RenderLib::Shader>(new VulkanShader(shaderType, vulkanRenderContext, vkShaderModule));
     }
 
     static VkShaderStageFlagBits GetVulkanShaderStageBits(ShaderType shaderType) {
@@ -38,9 +40,11 @@ namespace RenderLib {
         }
     }
 
-    ShaderProgram *
-    CreateShaderProgram(RenderLib::RenderContext *renderContext, const std::map<ShaderType, Shader *> &shaders) {
+    std::shared_ptr<RenderLib::ShaderProgram>
+    CreateShaderProgram(const std::shared_ptr<RenderLib::RenderContext> &renderContext,
+                        const std::map<ShaderType, Shader *> &shaders) {
         ENSURE_VULKAN_BACKEND_PTR(renderContext);
+        auto vulkanRenderContext = std::reinterpret_pointer_cast<VulkanRenderContext>(renderContext);
         std::vector<VkPipelineShaderStageCreateInfo> shaderStageCreateInfos;
         for (const auto &item: shaders) {
             auto shaderType = item.first;
@@ -62,21 +66,24 @@ namespace RenderLib {
             };
             shaderStageCreateInfos.push_back(shaderStageInfo);
         }
-        return new VulkanShaderProgram(shaderStageCreateInfos);
+        return std::make_shared<VulkanShaderProgram>(vulkanRenderContext, shaderStageCreateInfos);
     }
 
-    VulkanShader::VulkanShader(ShaderType shaderType, VkDevice vkDevice, VkShaderModule vkShaderModule) :
+    VulkanShader::VulkanShader(ShaderType shaderType, std::shared_ptr<VulkanRenderContext> vulkanRenderContext,
+                               VkShaderModule vkShaderModule) :
             Shader(VULKAN, shaderType),
-            vkDevice(vkDevice),
+            vulkanRenderContext(std::move(vulkanRenderContext)),
             vkShaderModule(vkShaderModule) {
     }
 
     VulkanShader::~VulkanShader() {
-        vkDestroyShaderModule(vkDevice, vkShaderModule, nullptr);
+        vkDestroyShaderModule(vulkanRenderContext->vkDevice, vkShaderModule, nullptr);
     }
 
-    VulkanShaderProgram::VulkanShaderProgram(std::vector<VkPipelineShaderStageCreateInfo> shaderStageCreateInfos)
+    VulkanShaderProgram::VulkanShaderProgram(std::shared_ptr<VulkanRenderContext> vulkanRenderContext,
+                                             std::vector<VkPipelineShaderStageCreateInfo> shaderStageCreateInfos)
             : ShaderProgram(VULKAN),
+              vulkanRenderContext(std::move(vulkanRenderContext)),
               shaderStageCreateInfos(std::move(shaderStageCreateInfos)) {
     }
 

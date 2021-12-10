@@ -8,10 +8,10 @@ namespace RenderLib {
     struct VulkanShader : public Shader {
 
     public:
-        VkDevice vkDevice;
+        std::shared_ptr<VulkanRenderContext> vulkanRenderContext;
         VkShaderModule vkShaderModule;
 
-        VulkanShader(ShaderType shaderType, VkDevice vkDevice, VkShaderModule vkShaderModule);
+        VulkanShader(ShaderType shaderType, std::shared_ptr<VulkanRenderContext> renderContext, VkShaderModule vkShaderModule);
 
         ~VulkanShader() override;
     };
@@ -19,9 +19,10 @@ namespace RenderLib {
     struct VulkanShaderProgram : public ShaderProgram {
 
     public:
+        std::shared_ptr<VulkanRenderContext> vulkanRenderContext;
         std::vector<VkPipelineShaderStageCreateInfo> shaderStageCreateInfos;
 
-        explicit VulkanShaderProgram(std::vector<VkPipelineShaderStageCreateInfo> shaderStageCreateInfos);
+        explicit VulkanShaderProgram(std::shared_ptr<VulkanRenderContext> vulkanRenderContext, std::vector<VkPipelineShaderStageCreateInfo> shaderStageCreateInfos);
 
         ~VulkanShaderProgram() override;
     };

@@ -2,10 +2,11 @@
 #include <unordered_set>
 #include <optional>
 #include <algorithm>
+#include <memory>
 
 namespace RenderLib {
 
-    RenderSystem *CreateRenderSystem(const RenderSystemDescriptor &renderSystemDescriptor) {
+    std::shared_ptr<RenderSystem> CreateRenderSystem(const RenderSystemDescriptor &renderSystemDescriptor) {
         ENSURE_VULKAN_BACKEND(renderSystemDescriptor);
         auto config = reinterpret_cast<VulkanRenderSystemConfig *>(renderSystemDescriptor.config);
         auto application = config->application;
@@ -63,20 +64,24 @@ namespace RenderLib {
                 .enabledExtensionCount = static_cast<uint32_t>(numExtensions),
                 .ppEnabledExtensionNames = instanceExtensionCstrs,
         };
-        auto *renderSystem = new VulkanRenderSystem;
-        renderSystem->backend = renderSystemDescriptor.backend;
+        VkInstance vkInstance;
 
-        renderSystem->instanceLayers = instanceLayerStrings;
-        renderSystem->instanceExtensions = instanceExtensionStrings;
-        renderSystem->deviceExtensions = requiredDeviceExtensions;
-        renderSystem->deviceLayers = {};
-
-        VULKAN_STATUS_VALIDATE_WITH_CALLBACK(vkCreateInstance(&instanceCreateInfo, nullptr, &renderSystem->vkInstance),
+        VULKAN_STATUS_VALIDATE_WITH_CALLBACK(vkCreateInstance(&instanceCreateInfo, nullptr, &vkInstance),
                                              "Failed to create Vulkan instance", {
                                                  delete[] instanceLayerCstrs;
                                                  delete[] instanceExtensionCstrs;
                                              });
-        return renderSystem;
+
+        auto vulkanRenderSystem = new VulkanRenderSystem{};
+        {
+            vulkanRenderSystem->backend = renderSystemDescriptor.backend;
+            vulkanRenderSystem->vkInstance = vkInstance;
+            vulkanRenderSystem->instanceLayers = instanceLayerStrings;
+            vulkanRenderSystem->instanceExtensions = instanceExtensionStrings;
+            vulkanRenderSystem->deviceExtensions = requiredDeviceExtensions;
+            vulkanRenderSystem->deviceLayers = {};
+        }
+        return std::shared_ptr<VulkanRenderSystem>(vulkanRenderSystem);
     }
 
     /**
@@ -98,10 +103,10 @@ namespace RenderLib {
     }
 
 
-    std::vector<RenderDevice *> GetRenderDevices(RenderSystem *renderSystem) {
+    std::vector<std::shared_ptr<RenderDevice>> GetRenderDevices(const std::shared_ptr<RenderSystem> &renderSystem) {
         ENSURE_VULKAN_BACKEND_PTR(renderSystem);
 
-        auto vkRenderSystem = reinterpret_cast<VulkanRenderSystem *>(renderSystem);
+        auto vkRenderSystem = std::reinterpret_pointer_cast<VulkanRenderSystem>(renderSystem);
         uint32_t numPhysicalDevices{};
         vkEnumeratePhysicalDevices(vkRenderSystem->vkInstance,
                                    &numPhysicalDevices, nullptr);
@@ -110,7 +115,7 @@ namespace RenderLib {
         vkEnumeratePhysicalDevices(vkRenderSystem->vkInstance,
                                    &numPhysicalDevices, physicalDevices.data());
 
-        std::vector<RenderDevice *> renderDevices;
+        std::vector<std::shared_ptr<RenderDevice>> renderDevices;
         for (auto &physicalDevice: physicalDevices) {
             VkPhysicalDeviceProperties deviceProperties{};
             vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
@@ -123,24 +128,24 @@ namespace RenderLib {
                 device->isDiscreteGpu = deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
                 device->capability = computeCapability;
             }
-            renderDevices.push_back(device);
+            renderDevices.emplace_back(device);
         }
         return renderDevices;
     }
 
-    RenderDevice *GetBestRenderDevice(RenderSystem *renderSystem) {
+    std::shared_ptr<RenderDevice> GetBestRenderDevice(const std::shared_ptr<RenderSystem> &renderSystem) {
         ENSURE_VULKAN_BACKEND_PTR(renderSystem);
-        auto vulkanRenderSystem = reinterpret_cast<VulkanRenderSystem *>(renderSystem);
+        auto vulkanRenderSystem = std::reinterpret_pointer_cast<VulkanRenderSystem>(renderSystem);
 
-        std::vector<RenderDevice *> devices = GetRenderDevices(renderSystem);
+        std::vector<std::shared_ptr<RenderDevice>> devices = GetRenderDevices(renderSystem);
         if (devices.empty()) {
             RAISE_EXCEPTION(errorhandling::IllegalStateException, "No graphics card was found");
         }
-        VulkanRenderDevice *bestDevice = nullptr;
+        std::shared_ptr<VulkanRenderDevice> bestDevice = nullptr;
         auto deviceExtensions = vulkanRenderSystem->deviceExtensions;
-        for (auto device: devices) {
+        for (const auto &device: devices) {
             if (bestDevice == nullptr || device->capability > bestDevice->capability) {
-                auto vulkanRenderDevice = reinterpret_cast<VulkanRenderDevice *>(device);
+                auto vulkanRenderDevice = std::reinterpret_pointer_cast<VulkanRenderDevice>(device);
                 if (!DeviceSupportsExtension(vulkanRenderDevice->vkPhysicalDevice, deviceExtensions)) {
                     continue;
                 }
@@ -199,8 +204,8 @@ namespace RenderLib {
         return queueCreateInfos;
     }
 
-    static VkDevice CreateDevice(const VulkanRenderSystem *renderSystem,
-                                 const VulkanRenderDevice *renderDevice,
+    static VkDevice CreateDevice(const std::shared_ptr<VulkanRenderSystem> &renderSystem,
+                                 const std::shared_ptr<VulkanRenderDevice> &renderDevice,
                                  const std::unordered_set<uint32_t> &queueFamilyIndices) {
         auto vkPhysicalDevice = renderDevice->vkPhysicalDevice;
 
@@ -262,7 +267,7 @@ namespace RenderLib {
     }
 
     static VulkanSwapChainSupportDetails
-    GetSwapChainSupportDetails(VulkanRenderDevice *vulkanRenderDevice, VkSurfaceKHR surface) {
+    GetSwapChainSupportDetails(const std::shared_ptr<VulkanRenderDevice> &vulkanRenderDevice, VkSurfaceKHR surface) {
         VulkanSwapChainSupportDetails swapChainSupportDetails{};
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkanRenderDevice->vkPhysicalDevice, surface,
                                                   &swapChainSupportDetails.surfaceCapabilities);
@@ -307,7 +312,7 @@ namespace RenderLib {
     }
 
     static VkExtent2D
-    ChooseExtent(GLFWWindowImpl *window, const VulkanSwapChainSupportDetails &swapChainSupportDetails) {
+    ChooseExtent(const std::shared_ptr<GLFWWindowImpl> &window, const VulkanSwapChainSupportDetails &swapChainSupportDetails) {
         auto capabilities = swapChainSupportDetails.surfaceCapabilities;
         if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
             return capabilities.currentExtent;
@@ -335,7 +340,8 @@ namespace RenderLib {
     }
 
     static VulkanQueueFamilyIndices
-    GetQueueFamilies(VulkanRenderSystem *vulkanRenderSystem, VulkanRenderDevice *vulkanRenderDevice,
+    GetQueueFamilies(const std::shared_ptr<VulkanRenderSystem> &vulkanRenderSystem,
+                     const std::shared_ptr<VulkanRenderDevice> &vulkanRenderDevice,
                      VkSurfaceKHR vkSurface) {
         uint32_t graphicsQueueFamilyIndex = FindQueueFamily(vulkanRenderDevice->vkPhysicalDevice,
                                                             VK_QUEUE_GRAPHICS_BIT);
@@ -402,11 +408,11 @@ namespace RenderLib {
         return swapChainImageViews;
     }
 
-    static VulkanSwapChain *CreateSwapChain(GLFWWindowImpl *window,
-                                            VkDevice vkDevice,
-                                            VulkanRenderDevice *vulkanRenderDevice,
-                                            VulkanQueueFamilyIndices queueFamilyIndices,
-                                            VkSurfaceKHR vkSurface) {
+    static std::shared_ptr<VulkanSwapChain> CreateSwapChain(const std::shared_ptr<GLFWWindowImpl> &window,
+                                                            VkDevice vkDevice,
+                                                            const std::shared_ptr<VulkanRenderDevice> &vulkanRenderDevice,
+                                                            VulkanQueueFamilyIndices queueFamilyIndices,
+                                                            VkSurfaceKHR vkSurface) {
         auto swapChainSupportDetails = GetSwapChainSupportDetails(vulkanRenderDevice, vkSurface);
         auto surfaceFormat = ChooseSurfaceFormat(swapChainSupportDetails);
         if (!surfaceFormat) {
@@ -470,17 +476,19 @@ namespace RenderLib {
             swapChain->swapChainExtent = extent;
             swapChain->swapChainImageFormat = surfaceFormat->format;
         }
-        return swapChain;
+        return std::shared_ptr<VulkanSwapChain>(swapChain);
     }
 
-    RenderContext *CreateRenderContext(Window *window, RenderSystem *renderSystem, RenderDevice *renderDevice) {
+    std::shared_ptr<RenderContext>
+    CreateRenderContext(const std::shared_ptr<Window> &window, const std::shared_ptr<RenderSystem> &renderSystem,
+                        const std::shared_ptr<RenderDevice> &renderDevice) {
         ENSURE_VULKAN_BACKEND_PTR(renderSystem);
         ENSURE_VULKAN_BACKEND_PTR(window);
 
-        auto vulkanRenderSystem = reinterpret_cast<VulkanRenderSystem *>(renderSystem);
-        auto vulkanRenderDevice = reinterpret_cast<VulkanRenderDevice *>(renderDevice);
+        auto vulkanRenderSystem = std::reinterpret_pointer_cast<VulkanRenderSystem>(renderSystem);
+        auto vulkanRenderDevice = std::reinterpret_pointer_cast<VulkanRenderDevice>(renderDevice);
 
-        auto glfwWindow = reinterpret_cast<GLFWWindowImpl *>(window);
+        auto glfwWindow = std::reinterpret_pointer_cast<GLFWWindowImpl>(window);
 
         VkSurfaceKHR vkSurface;
         VULKAN_STATUS_VALIDATE(
@@ -502,7 +510,7 @@ namespace RenderLib {
         VkQueue computeQueue = RetrieveQueue(vkDevice, computeQueueFamilyIndex);
         VkQueue presentQueue = RetrieveQueue(vkDevice, presentQueueFamilyIndex);
 
-        VulkanSwapChain *swapChain = CreateSwapChain(
+        std::shared_ptr<VulkanSwapChain> swapChain = CreateSwapChain(
                 glfwWindow,
                 vkDevice,
                 vulkanRenderDevice,
@@ -521,7 +529,7 @@ namespace RenderLib {
             vulkanRenderContext->computeQueue = computeQueue;
             vulkanRenderContext->swapChain = swapChain;
         }
-        return vulkanRenderContext;
+        return std::shared_ptr<VulkanRenderContext>(vulkanRenderContext);
     }
 
     std::vector<std::string> GetRequiredDeviceExtensions() {
@@ -542,14 +550,14 @@ namespace RenderLib {
     Window::Window(RenderSystemBackend backend) : backend(backend) {}
 
     VulkanRenderContext::~VulkanRenderContext() {
-        delete swapChain;
+        swapChain = nullptr;
         vkDestroySurfaceKHR(vkInstance, vkSurface, nullptr);
         vkDestroyDevice(vkDevice, nullptr);
         vkDestroyInstance(vkInstance, nullptr);
     }
 
     VulkanSwapChain::~VulkanSwapChain() {
-        for (auto &swapChainImageView : swapChainImageViews) {
+        for (auto &swapChainImageView: swapChainImageViews) {
             vkDestroyImageView(vkDevice, swapChainImageView, nullptr);
         }
         vkDestroySwapchainKHR(vkDevice, vkSwapChain, nullptr);

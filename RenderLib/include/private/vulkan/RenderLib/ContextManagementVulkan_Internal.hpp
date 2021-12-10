@@ -86,9 +86,10 @@ namespace RenderLib {
         VkQueue presentQueue;
         VkQueue computeQueue;
 
-        VulkanSwapChain *swapChain;
+        std::shared_ptr<VulkanSwapChain> swapChain;
 
         ~VulkanRenderContext() override;
+        
     };
 
     struct VulkanQueueFamilyIndices {

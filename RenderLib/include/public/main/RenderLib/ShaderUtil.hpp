@@ -2,6 +2,7 @@
 
 #include <RenderLib/ContextManagement.hpp>
 #include <map>
+#include <memory>
 
 namespace RenderLib {
 
@@ -35,11 +36,11 @@ namespace RenderLib {
         virtual ~ShaderProgram() = default;
     };
 
-    Shader *
-    LoadPrecompiledShader(RenderLib::RenderContext *renderContext, const uint8_t *shaderBinaryContent,
+    std::shared_ptr<RenderLib::Shader>
+    LoadPrecompiledShader(const std::shared_ptr<RenderLib::RenderContext> &renderContext, const uint8_t *shaderBinaryContent,
                           size_t shaderBinaryContentSize, ShaderType shaderType);
 
-    ShaderProgram *
-    CreateShaderProgram(RenderLib::RenderContext *renderContext, const std::map<ShaderType, Shader *> &shaders);
+    std::shared_ptr<RenderLib::ShaderProgram>
+    CreateShaderProgram(const std::shared_ptr<RenderLib::RenderContext> &renderContext, const std::map<ShaderType, Shader *> &shaders);
 
 }

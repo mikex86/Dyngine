@@ -26,8 +26,8 @@ int RunEngine() {
             .backend = RenderLib::RenderSystemBackend::VULKAN,
             .config = &renderSystemConfig
     };
-    auto renderSystem = std::unique_ptr<RenderLib::RenderSystem>(RenderLib::CreateRenderSystem(renderSystemDescriptor));
-    auto renderDevice = std::unique_ptr<RenderLib::RenderDevice>(RenderLib::GetBestRenderDevice(renderSystem.get()));
+    auto renderSystem = RenderLib::CreateRenderSystem(renderSystemDescriptor);
+    auto renderDevice = RenderLib::GetBestRenderDevice(renderSystem);
 
     std::cout << "Render device: " << renderDevice->deviceName << ", Is discrete GPU: "
               << (renderDevice->isDiscreteGpu ? "true" : "false")
@@ -35,28 +35,26 @@ int RunEngine() {
 
     auto window = RenderLib::CreateNewWindow(ENGINE_NAME " " ENGINE_VERSION, 800, 600);
 
-    auto renderContext = std::unique_ptr<RenderLib::RenderContext>(
-            RenderLib::CreateRenderContext(window, renderSystem.get(), renderDevice.get())
+    auto renderContext = RenderLib::CreateRenderContext(window, renderSystem, renderDevice);
+
+    auto vertexShader = LoadPrecompiledShaderFromArchive(
+            renderContext,
+            engineResources,
+            "/triangle.vert.glsl.spv",
+            RenderLib::ShaderType::VERTEX_SHADER
     );
 
-    auto vertexShader = std::unique_ptr<RenderLib::Shader>(LoadPrecompiledShaderFromArchive(
-            renderContext.get(),
-            engineResources,
-            "/triangle.frag.glsl.spv",
-            RenderLib::ShaderType::VERTEX_SHADER
-    ));
-
-    auto fragmentShader = std::unique_ptr<RenderLib::Shader>(LoadPrecompiledShaderFromArchive(
-            renderContext.get(),
+    auto fragmentShader = LoadPrecompiledShaderFromArchive(
+            renderContext,
             engineResources,
             "/triangle.frag.glsl.spv",
             RenderLib::ShaderType::FRAGMENT_SHADER
-    ));
+    );
 
-    auto shaderProgram = std::unique_ptr<RenderLib::ShaderProgram>(RenderLib::CreateShaderProgram(renderContext.get(), {
+    auto shaderProgram = RenderLib::CreateShaderProgram(renderContext, {
             {RenderLib::VERTEX_SHADER,   vertexShader.get()},
             {RenderLib::FRAGMENT_SHADER, fragmentShader.get()}
-    }));
+    });
 
     RenderLib::VertexFormat vertexFormat{};
     {
@@ -75,10 +73,10 @@ int RunEngine() {
             }
     };
     auto graphicsPipeline = RenderLib::CreateGraphicsPipeline(
-            renderContext.get(),
+            renderContext,
             vertexFormat,
             pipelineLayout,
-            std::move(shaderProgram)
+            shaderProgram
     );
 
     window->show();
