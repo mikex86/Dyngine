@@ -62,7 +62,41 @@ int RunEngine() {
         vertexFormat.appendAttribute("color", RenderLib::VertexAttributeType::UBYTE_VEC4);
     }
 
+    std::shared_ptr<RenderLib::BufferObject> vertexBufferObject;
+    std::shared_ptr<RenderLib::BufferObject> indexBufferObject;
+
+    // Vertex data (3 vertices for our triangle)
+    const float s = 0.5f;
+
+    // Vertex data structure
+    struct Vertex {
+        float position[2];
+        uint8_t color[4];
+    };
+
+    Vertex vertices[] =
+            {
+                    {{0,  s},  {255, 0,   0,   255}}, // 1st vertex: center-top, red
+                    {{s,  -s}, {0,   255, 0,   255}}, // 2nd vertex: right-bottom, green
+                    {{-s, -s}, {0,   0,   255, 255}}, // 3rd vertex: left-bottom, blue
+            };
+
+    RenderLib::BufferDescriptor bufferDescriptor(
+            sizeof(vertices),
+            RenderLib::BufferType::VERTEX_BUFFER
+    );
+    vertexBufferObject = RenderLib::CreateBufferObject(renderContext, bufferDescriptor, vertices, sizeof(vertices));
+
+    uint32_t indices[] = {0, 1, 2};
+    RenderLib::BufferDescriptor indexBufferDescriptor(
+            sizeof(indices),
+            RenderLib::BufferType::INDEX_BUFFER
+    );
+    indexBufferObject = RenderLib::CreateBufferObject(renderContext, indexBufferDescriptor, indices, sizeof(indices));
+
+
     auto pipelineLayout = RenderLib::PipelineLayout{};
+
     auto graphicsPipeline = RenderLib::CreateGraphicsPipeline(
             renderContext,
             vertexFormat,
@@ -70,26 +104,33 @@ int RunEngine() {
             shaderProgram
     );
 
-    auto frameBuffer = RenderLib::CreateFrameBuffer(renderContext);
-    auto commandBuffer = RenderLib::CreateCommandBuffer(frameBuffer);
+    auto commandBuffer = RenderLib::CreateCommandBuffer(renderContext);
 
     window->show();
 
-    while (!window->shouldClose()) {
-        renderContext->beginFrame();
-        {
-            commandBuffer->begin();
+    try {
+        while (!window->shouldClose()) {
+            renderContext->beginFrame();
             {
-                commandBuffer->beginRenderPass();
-                commandBuffer->bindGraphicsPipeline(graphicsPipeline);
-                commandBuffer->endRenderPass();
+                commandBuffer->begin();
+                {
+                    commandBuffer->beginRenderPass();
+                    commandBuffer->bindGraphicsPipeline(graphicsPipeline);
+                    commandBuffer->bindBufferObject(vertexBufferObject);
+                    commandBuffer->bindBufferObject(indexBufferObject);
+                    commandBuffer->draw(3, 1, 0, 0);
+                    commandBuffer->endRenderPass();
+                }
+                commandBuffer->end();
             }
-            commandBuffer->end();
+            renderContext->drawFrame(commandBuffer);
+            renderContext->endFrame();
+            renderContext->synchronize();
+            window->update();
         }
-        renderContext->drawFrame(commandBuffer);
-        renderContext->endFrame();
+    } catch (const std::exception &e) {
         renderContext->synchronize();
-        window->update();
+        throw e;
     }
 
     window->close();

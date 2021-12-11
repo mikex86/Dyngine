@@ -1,8 +1,10 @@
 #include <RenderLib/GraphicsPipelineVulkan_Internal.hpp>
+#include <memory>
+#include <utility>
 
 namespace RenderLib {
 
-    static VkFormat GetVulkanFormat(VertexAttributeType dataType) {
+    static inline VkFormat GetVulkanFormat(VertexAttributeType dataType) {
         switch (dataType) {
             case UBYTE:
                 return VK_FORMAT_R8_UNORM;
@@ -79,7 +81,7 @@ namespace RenderLib {
         }
     }
 
-    static std::vector<VkVertexInputAttributeDescription>
+    static inline std::vector<VkVertexInputAttributeDescription>
     GetVulkanVertexInputAttributeDescriptions(const VertexFormat &vertexFormat) {
         auto attributes = vertexFormat.getAttributes();
         std::vector<VkVertexInputAttributeDescription> attributeDescriptions{};
@@ -98,7 +100,7 @@ namespace RenderLib {
         return attributeDescriptions;
     }
 
-    static VkVertexInputBindingDescription
+    static inline VkVertexInputBindingDescription
     GetVulkanVertexInputBindingDescription(uint32_t binding, const VertexFormat &vertexFormat) {
         VkVertexInputBindingDescription bindingDescription{
                 .binding = binding,
@@ -108,9 +110,9 @@ namespace RenderLib {
         return bindingDescription;
     }
 
-    static VkPipelineVertexInputStateCreateInfo GetVertexInputStateCreateInfo(const VertexFormat &vertexFormat,
-                                                                              const std::vector<VkVertexInputBindingDescription> &vertexInputBindingDescriptions,
-                                                                              const std::vector<VkVertexInputAttributeDescription> &vertexAttributeDescriptions) {
+    static inline VkPipelineVertexInputStateCreateInfo GetVertexInputStateCreateInfo(const VertexFormat &vertexFormat,
+                                                                                     const std::vector<VkVertexInputBindingDescription> &vertexInputBindingDescriptions,
+                                                                                     const std::vector<VkVertexInputAttributeDescription> &vertexAttributeDescriptions) {
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
                 .vertexBindingDescriptionCount = static_cast<uint32_t>(vertexInputBindingDescriptions.size()),
@@ -121,7 +123,8 @@ namespace RenderLib {
         return vertexInputInfo;
     }
 
-    static VkPipelineInputAssemblyStateCreateInfo MakeInputAssemblyStateCreateInfo(VkPrimitiveTopology topology) {
+    static inline VkPipelineInputAssemblyStateCreateInfo
+    MakeInputAssemblyStateCreateInfo(VkPrimitiveTopology topology) {
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
                 .topology = topology,
@@ -130,7 +133,7 @@ namespace RenderLib {
         return inputAssembly;
     }
 
-    static VkViewport MakeViewPort(VkExtent2D viewportExtent) {
+    static inline VkViewport MakeViewPort(VkExtent2D viewportExtent) {
         VkViewport viewport{
                 .x = 0.0f,
                 .y = 0.0f,
@@ -142,7 +145,7 @@ namespace RenderLib {
         return viewport;
     }
 
-    static VkRect2D MakeScissor(VkExtent2D viewportExtent) {
+    static inline VkRect2D MakeScissor(VkExtent2D viewportExtent) {
         VkRect2D scissor{
                 .offset = {0, 0},
                 .extent = viewportExtent
@@ -150,7 +153,7 @@ namespace RenderLib {
         return scissor;
     }
 
-    static VkPipelineViewportStateCreateInfo
+    static inline VkPipelineViewportStateCreateInfo
     MakeViewportStateCreateInfo(const VkExtent2D &viewportExtent, const VkViewport &viewport,
                                 const VkRect2D &scissor) {
         VkPipelineViewportStateCreateInfo viewportState{
@@ -163,7 +166,7 @@ namespace RenderLib {
         return viewportState;
     }
 
-    static VkPipelineRasterizationStateCreateInfo MakeRasterizationInfo() {
+    static inline VkPipelineRasterizationStateCreateInfo MakeRasterizationInfo() {
         // Expose this shit?
         VkPipelineRasterizationStateCreateInfo rasterizationInfo{
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
@@ -180,7 +183,7 @@ namespace RenderLib {
         return rasterizationInfo;
     }
 
-    static VkPipelineColorBlendStateCreateInfo MakeColorBlendStateCreateInfo() {
+    static inline VkPipelineColorBlendStateCreateInfo MakeColorBlendStateCreateInfo() {
         VkPipelineColorBlendAttachmentState colorBlendAttachment{
                 .blendEnable = VK_FALSE
         };
@@ -194,7 +197,7 @@ namespace RenderLib {
         return colorBlendInfo;
     }
 
-    static VkPipelineMultisampleStateCreateInfo MakeMultisampleStateCreateInfo() {
+    static inline VkPipelineMultisampleStateCreateInfo MakeMultisampleStateCreateInfo() {
         VkPipelineMultisampleStateCreateInfo multisampleInfo{
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
                 .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
@@ -207,7 +210,7 @@ namespace RenderLib {
         return multisampleInfo;
     }
 
-    static VkShaderStageFlags GetShaderTypeFlags(ShaderType type) {
+    static inline VkShaderStageFlags GetShaderTypeFlags(ShaderType type) {
         switch (type) {
             case ShaderType::VERTEX_SHADER:
                 return VK_SHADER_STAGE_VERTEX_BIT;
@@ -228,7 +231,7 @@ namespace RenderLib {
      * @param acceptingShaderStages the shader stages that the uniform variables are supplied to.
      * @return the descriptor set layout entry
      */
-    static VkDescriptorSetLayoutBinding
+    static inline VkDescriptorSetLayoutBinding
     MakeDescriptorSetLayoutBinding(uint32_t binding, uint32_t descriptorCount,
                                    const std::vector<ShaderType> &acceptingShaderStages) {
         VkShaderStageFlags shaderStageFlags{};
@@ -245,7 +248,7 @@ namespace RenderLib {
         return descriptorSetLayoutBinding;
     }
 
-    static VkDescriptorSetLayout
+    static inline VkDescriptorSetLayout
     CreateDescriptorSetLayout(VkDevice vkDevice, const std::vector<VkDescriptorSetLayoutBinding> &bindings) {
         VkDescriptorSetLayoutCreateInfo layoutInfo{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -258,7 +261,7 @@ namespace RenderLib {
         return descriptorSetLayout;
     }
 
-    static VkPipelineLayout CreatePipelineLayout(VkDevice vkDevice, const PipelineLayout &layout) {
+    static inline VkPipelineLayout CreatePipelineLayout(VkDevice vkDevice, const PipelineLayout &layout) {
         const auto &uniformDescriptors = layout.uniformDescriptors;
         uint32_t binding = 0;
         auto descriptorSetLayouts = std::vector<VkDescriptorSetLayoutBinding>{};
@@ -284,7 +287,7 @@ namespace RenderLib {
         return pipelineLayout;
     }
 
-    static std::vector<VkVertexInputBindingDescription>
+    static inline std::vector<VkVertexInputBindingDescription>
     GetVulkanVertexInputBindingDescriptions(const VertexFormat &format) {
         auto attributes = format.getAttributes();
         std::vector<VkVertexInputBindingDescription> vertexInputBindingDescriptions{};
@@ -297,11 +300,11 @@ namespace RenderLib {
         return vertexInputBindingDescriptions;
     }
 
-    std::shared_ptr<GraphicsPipeline>
-    CreateGraphicsPipeline(const std::shared_ptr<RenderLib::RenderContext> &renderContext,
-                           const VertexFormat &vertexFormat,
-                           const PipelineLayout &pipelineLayout,
-                           const std::shared_ptr<RenderLib::ShaderProgram> &shaderProgram) {
+    VulkanGraphicsPipeline *
+    CreateVulkanGraphicsPipelinePtr(const std::shared_ptr<RenderLib::RenderContext> &renderContext,
+                                    const VertexFormat &vertexFormat,
+                                    const PipelineLayout &pipelineLayout,
+                                    const std::shared_ptr<RenderLib::ShaderProgram> &shaderProgram) {
         ENSURE_VULKAN_BACKEND_PTR(renderContext);
         ENSURE_VULKAN_BACKEND_PTR(shaderProgram);
 
@@ -358,22 +361,60 @@ namespace RenderLib {
                 ),
                 "Failed to create graphics pipeline."
         );
-
-        return std::shared_ptr<GraphicsPipeline>(
-                new VulkanGraphicsPipeline(vulkanRenderContext, vkPipeline, vkPipelineLayout)
+        auto graphicsPipeline = new VulkanGraphicsPipeline(
+                vertexFormat, pipelineLayout, shaderProgram, vulkanRenderContext, vkPipeline, vkPipelineLayout
         );
+        return graphicsPipeline;
     }
 
-    VulkanGraphicsPipeline::VulkanGraphicsPipeline(std::shared_ptr<VulkanRenderContext> vulkanRenderContext,
+    std::shared_ptr<GraphicsPipeline>
+    CreateGraphicsPipeline(const std::shared_ptr<RenderLib::RenderContext> &renderContext,
+                           const VertexFormat &vertexFormat,
+                           const PipelineLayout &pipelineLayout,
+                           const std::shared_ptr<RenderLib::ShaderProgram> &shaderProgram) {
+        ENSURE_VULKAN_BACKEND_PTR(renderContext);
+        ENSURE_VULKAN_BACKEND_PTR(shaderProgram);
+
+        auto vulkanRenderContext = std::dynamic_pointer_cast<VulkanRenderContext>(renderContext);
+        auto graphicsPipeline = std::shared_ptr<VulkanGraphicsPipeline>(CreateVulkanGraphicsPipelinePtr(vulkanRenderContext, vertexFormat, pipelineLayout,
+                                                             shaderProgram));
+        vulkanRenderContext->vulkanGraphicsPipelines.push_back(graphicsPipeline);
+        return graphicsPipeline;
+    }
+
+    VulkanGraphicsPipeline::VulkanGraphicsPipeline(const VertexFormat &vertexFormat,
+                                                   const PipelineLayout &pipelineLayout,
+                                                   std::shared_ptr<ShaderProgram> shaderProgram,
+                                                   std::shared_ptr<VulkanRenderContext> vulkanRenderContext,
                                                    VkPipeline vkPipeline, VkPipelineLayout vkPipelineLayout)
-            : GraphicsPipeline(VULKAN),
+            : GraphicsPipeline(VULKAN, vertexFormat, pipelineLayout, std::move(shaderProgram)),
               vulkanRenderContext(std::move(vulkanRenderContext)),
               vkPipeline(vkPipeline),
-              vkPipelineLayout(vkPipelineLayout) {}
+              vkPipelineLayout(vkPipelineLayout) {
+    }
 
-    VulkanGraphicsPipeline::~VulkanGraphicsPipeline() {
+    void VulkanGraphicsPipeline::dispose() {
+        if (disposed) {
+            return;
+        }
         vkDestroyPipeline(vulkanRenderContext->vkDevice, vkPipeline, nullptr);
         vkDestroyPipelineLayout(vulkanRenderContext->vkDevice, vkPipelineLayout, nullptr);
         vulkanRenderContext = nullptr;
+        disposed = true;
     }
+
+    void VulkanGraphicsPipeline::transferStateFrom(VulkanGraphicsPipeline *graphicsPipeline) {
+        vkPipeline = graphicsPipeline->vkPipeline;
+        vkPipelineLayout = graphicsPipeline->vkPipelineLayout;
+        pipelineLayout = graphicsPipeline->pipelineLayout;
+        shaderProgram = graphicsPipeline->shaderProgram;
+        vertexFormat = graphicsPipeline->vertexFormat;
+        vulkanRenderContext = graphicsPipeline->vulkanRenderContext;
+        graphicsPipeline->disposed = true; // Hack to prevent freeing the handles we just transferred
+    }
+
+    VulkanGraphicsPipeline::~VulkanGraphicsPipeline() {
+        dispose();
+    }
+
 }

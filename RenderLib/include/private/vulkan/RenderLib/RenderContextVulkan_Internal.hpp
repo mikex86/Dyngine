@@ -1,44 +1,11 @@
 #pragma once
 
+#include <RenderLib/RenderLibVulkan_Internal.hpp>
 #include <ErrorHandling/IllegalStateException.hpp>
 #include <RenderLib/RenderContextVulkan.hpp>
 #include <vulkan/vulkan.h>
 #include <string>
 #include <unordered_set>
-
-#define RENDERLIB_DEBUG_VALIDATIONS
-
-#ifdef RENDERLIB_DEBUG_VALIDATIONS
-#define ENSURE_VULKAN_BACKEND_PTR(handle) \
-    if ((handle)->backend != RenderSystemBackend::VULKAN) \
-    RAISE_EXCEPTION(errorhandling::IllegalStateException, \
-                    std::string("Handle "  #handle  " has an unexpected backend: ") + \
-                    GetRenderSystemBackendName((handle)->backend) + ", should be Vulkan instead!")
-
-#define ENSURE_VULKAN_BACKEND(handle) \
-    if ((handle).backend != RenderSystemBackend::VULKAN) \
-    RAISE_EXCEPTION(errorhandling::IllegalStateException, \
-                    std::string("Handle " #handle " has an unexpected backend: ") + \
-                    GetRenderSystemBackendName((handle).backend) + ", should be Vulkan instead!")
-#else
-#define ENSURE_VULKAN_BACKEND_PTR(renderSystem)
-#define ENSURE_VULKAN_BACKEND(renderSystem)
-#endif
-
-#ifdef RENDERLIB_DEBUG_VALIDATIONS
-#define VULKAN_STATUS_VALIDATE_WITH_CALLBACK(errorStatus, errorMessage, errorCallback) \
-{                                                                                      \
-auto status = (errorStatus);                                                                                       \
-if ((status) != VK_SUCCESS) {                                       \
-    errorCallback;                                                                     \
-    RAISE_EXCEPTION(VulkanStatusException, std::string(errorMessage) + ": " + RenderLib::GetVulkanResultString(status)); \
-} \
-}
-#else
-#define VULKAN_STATUS_VALIDATE_WITH_CALLBACK(errorStatus, errorMessage, errorCallback) if ((errorStatus) != VK_SUCCESS) { errorCallBack;}
-#endif
-
-#define VULKAN_STATUS_VALIDATE(errorStatus, errorMessage) VULKAN_STATUS_VALIDATE_WITH_CALLBACK(errorStatus, errorMessage, {})
 
 namespace RenderLib {
 
@@ -47,6 +14,7 @@ namespace RenderLib {
      * @return the human readable name of the vulkan result status code
      */
     std::string GetVulkanResultString(VkResult result);
+
 
     struct VulkanRenderSystem : public RenderSystem {
         VkInstance vkInstance;
@@ -66,24 +34,57 @@ namespace RenderLib {
         std::vector<VkPresentModeKHR> presentModes;
     };
 
+    struct GLFWWindowImpl;
+
     struct VulkanSwapChain {
         VkDevice vkDevice;
+        VkPhysicalDevice vkPhysicalDevice;
         VkSwapchainKHR vkSwapChain;
         std::vector<VkImage> swapChainImages;
         std::vector<VkImageView> swapChainImageViews;
         VkExtent2D swapChainExtent;
         VkFormat swapChainImageFormat;
+        std::shared_ptr<GLFWWindowImpl> window;
+        bool disposed = false;
+
+        inline void dispose();
 
         virtual ~VulkanSwapChain();
     };
 
+    struct VulkanQueueFamilyIndices {
+        uint32_t graphicsQueueFamilyIndex;
+        uint32_t presentQueueFamilyIndex;
+        uint32_t computeQueueFamilyIndex;
+        std::unordered_set<uint32_t> uniqueQueueFamilyIndices;
+    };
+
     struct VulkanCommandBuffer;
+
+    struct VulkanGraphicsPipeline;
+
+    struct VulkanFrameBuffer : public FrameBuffer {
+    private:
+        bool disposed = false;
+    public:
+        VkDevice vkDevice;
+        std::vector<VkFramebuffer> frameBuffers;
+
+        VulkanFrameBuffer(VkDevice vkDevice,
+                          std::vector<VkFramebuffer> frameBuffers);
+
+        void dispose();
+
+        ~VulkanFrameBuffer() override;
+    };
+
 
     struct VulkanRenderContext : public RenderContext {
 
     public:
         VkInstance vkInstance;
         VkDevice vkDevice;
+        VkPhysicalDevice vkPhysicalDevice;
         VkSurfaceKHR vkSurface;
         VkRenderPass vkRenderPass;
         VkCommandPool vkCommandPool;
@@ -93,30 +94,28 @@ namespace RenderLib {
         VkSemaphore imageAvailableSemaphore;
         VkSemaphore renderFinishedSemaphore;
         std::shared_ptr<VulkanSwapChain> vulkanSwapChain;
+        VulkanQueueFamilyIndices queueFamilyIndices;
+        std::shared_ptr<VulkanFrameBuffer> vulkanFrameBuffer;
+        std::vector<std::shared_ptr<VulkanGraphicsPipeline>> vulkanGraphicsPipelines;
+        std::vector<std::shared_ptr<VulkanCommandBuffer>> vulkanCommandBuffers;
 
         uint32_t currentImageIndex;
 
-        void beginFrame() override;
+        inline void beginFrame() override;
 
-        void drawFrame(const std::shared_ptr<RenderLib::CommandBuffer> &commandBuffer) override;
+        inline void drawFrame(const std::shared_ptr<RenderLib::CommandBuffer> &commandBuffer) override;
 
-        void endFrame() override;
+        inline void endFrame() override;
 
-        void synchronize() override;
+        inline void synchronize() override;
 
         ~VulkanRenderContext() override;
 
     private:
-        void submitCommandBuffer(const std::shared_ptr<VulkanCommandBuffer> &commandBuffer);
+        inline void submitCommandBuffer(const std::shared_ptr<VulkanCommandBuffer> &commandBuffer);
 
-        [[nodiscard]] uint32_t acquireNextImage() const;
-    };
+        [[nodiscard]] inline uint32_t acquireNextImage();
 
-    struct VulkanQueueFamilyIndices {
-        uint32_t graphicsQueueFamilyIndex;
-        uint32_t presentQueueFamilyIndex;
-        uint32_t computeQueueFamilyIndex;
-        std::unordered_set<uint32_t> uniqueQueueFamilyIndices;
     };
 
     /**

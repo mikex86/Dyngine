@@ -1,10 +1,12 @@
 #include <RenderLib/RenderContextVulkan_Internal.hpp>
+#include <RenderLib/GraphicsPipelineVulkan_Internal.hpp>
 #include <RenderLib/GLFWWindow_Internal.hpp>
 #include <RenderLib/CommandBufferVulkan_Internal.hpp>
 #include <unordered_set>
 #include <optional>
 #include <algorithm>
 #include <memory>
+#include <utility>
 
 namespace RenderLib {
 
@@ -91,7 +93,7 @@ namespace RenderLib {
      * @param device
      * @return
      */
-    static uint64_t GetComputeCapability(VkPhysicalDeviceProperties deviceProperties) {
+    inline static uint64_t GetComputeCapability(VkPhysicalDeviceProperties deviceProperties) {
         uint64_t score = 0;
         score += deviceProperties.limits.maxComputeSharedMemorySize;
         score += deviceProperties.limits.maxComputeWorkGroupCount[0] *
@@ -105,7 +107,8 @@ namespace RenderLib {
     }
 
 
-    std::vector<std::shared_ptr<RenderDevice>> GetRenderDevices(const std::shared_ptr<RenderSystem> &renderSystem) {
+    inline std::vector<std::shared_ptr<RenderDevice>>
+    GetRenderDevices(const std::shared_ptr<RenderSystem> &renderSystem) {
         ENSURE_VULKAN_BACKEND_PTR(renderSystem);
 
         auto vkRenderSystem = std::dynamic_pointer_cast<VulkanRenderSystem>(renderSystem);
@@ -159,7 +162,7 @@ namespace RenderLib {
         return bestDevice;
     }
 
-    static uint32_t FindQueueFamily(VkPhysicalDevice device, VkQueueFlagBits queueFlagBits) {
+    inline static uint32_t FindQueueFamily(VkPhysicalDevice device, VkQueueFlagBits queueFlagBits) {
         uint32_t queueFamilyCount{};
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
         std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyCount);
@@ -172,7 +175,7 @@ namespace RenderLib {
         return UINT32_MAX;
     }
 
-    static uint32_t FindPresentFamily(VkPhysicalDevice device, VkSurfaceKHR vkSurface) {
+    inline static uint32_t FindPresentFamily(VkPhysicalDevice device, VkSurfaceKHR vkSurface) {
         VkBool32 presentSupport{};
         uint32_t queueFamilyCount{};
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
@@ -187,7 +190,7 @@ namespace RenderLib {
         return UINT32_MAX;
     }
 
-    static std::vector<VkDeviceQueueCreateInfo>
+    inline static std::vector<VkDeviceQueueCreateInfo>
     MakeQueueCreateInfos(const std::unordered_set<uint32_t> &queueFamilyIndices) {
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos{};
         for (auto queueFamilyIndex: queueFamilyIndices) {
@@ -205,9 +208,9 @@ namespace RenderLib {
         return queueCreateInfos;
     }
 
-    static VkDevice CreateDevice(const std::shared_ptr<VulkanRenderSystem> &renderSystem,
-                                 const std::shared_ptr<VulkanRenderDevice> &renderDevice,
-                                 const std::unordered_set<uint32_t> &queueFamilyIndices) {
+    inline static VkDevice CreateDevice(const std::shared_ptr<VulkanRenderSystem> &renderSystem,
+                                        const std::shared_ptr<VulkanRenderDevice> &renderDevice,
+                                        const std::unordered_set<uint32_t> &queueFamilyIndices) {
         auto vkPhysicalDevice = renderDevice->vkPhysicalDevice;
 
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
@@ -259,7 +262,7 @@ namespace RenderLib {
         return vkDevice;
     }
 
-    static VkQueue RetrieveQueue(VkDevice device, uint32_t queueFamilyIndex) {
+    inline static VkQueue RetrieveQueue(VkDevice device, uint32_t queueFamilyIndex) {
         VkQueue vkQueue;
         {
             vkGetDeviceQueue(device, queueFamilyIndex, 0, &vkQueue);
@@ -267,31 +270,31 @@ namespace RenderLib {
         return vkQueue;
     }
 
-    static VulkanSwapChainSupportDetails
-    GetSwapChainSupportDetails(const std::shared_ptr<VulkanRenderDevice> &vulkanRenderDevice, VkSurfaceKHR surface) {
+    inline static VulkanSwapChainSupportDetails
+    GetSwapChainSupportDetails(VkPhysicalDevice vkPhysicalDevice, VkSurfaceKHR surface) {
         VulkanSwapChainSupportDetails swapChainSupportDetails{};
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkanRenderDevice->vkPhysicalDevice, surface,
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkPhysicalDevice, surface,
                                                   &swapChainSupportDetails.surfaceCapabilities);
         uint32_t formatCount = 0;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(vulkanRenderDevice->vkPhysicalDevice, surface, &formatCount, nullptr);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(vkPhysicalDevice, surface, &formatCount, nullptr);
         if (formatCount != 0) {
             swapChainSupportDetails.surfaceFormats.resize(formatCount);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(vulkanRenderDevice->vkPhysicalDevice, surface, &formatCount,
+            vkGetPhysicalDeviceSurfaceFormatsKHR(vkPhysicalDevice, surface, &formatCount,
                                                  swapChainSupportDetails.surfaceFormats.data());
         }
         uint32_t presentModeCount = 0;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(vulkanRenderDevice->vkPhysicalDevice, surface, &presentModeCount,
+        vkGetPhysicalDeviceSurfacePresentModesKHR(vkPhysicalDevice, surface, &presentModeCount,
                                                   nullptr);
         if (presentModeCount != 0) {
             swapChainSupportDetails.presentModes.resize(presentModeCount);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(vulkanRenderDevice->vkPhysicalDevice, surface, &presentModeCount,
+            vkGetPhysicalDeviceSurfacePresentModesKHR(vkPhysicalDevice, surface, &presentModeCount,
                                                       swapChainSupportDetails.presentModes.data());
         }
         return swapChainSupportDetails;
     }
 
 
-    static std::optional<VkSurfaceFormatKHR>
+    inline static std::optional<VkSurfaceFormatKHR>
     ChooseSurfaceFormat(const VulkanSwapChainSupportDetails &swapChainSupportDetails) {
         for (const auto &surfaceFormat: swapChainSupportDetails.surfaceFormats) {
             if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_UNORM &&
@@ -312,7 +315,7 @@ namespace RenderLib {
         return {};
     }
 
-    static VkExtent2D
+    inline static VkExtent2D
     ChooseExtent(const std::shared_ptr<GLFWWindowImpl> &window,
                  const VulkanSwapChainSupportDetails &swapChainSupportDetails) {
         auto capabilities = swapChainSupportDetails.surfaceCapabilities;
@@ -333,7 +336,7 @@ namespace RenderLib {
         }
     }
 
-    static uint32_t GetImageCount(const VulkanSwapChainSupportDetails &details) {
+    inline static uint32_t GetImageCount(const VulkanSwapChainSupportDetails &details) {
         uint32_t imageCount = details.surfaceCapabilities.minImageCount + 1;
         if (details.surfaceCapabilities.maxImageCount > 0 && imageCount > details.surfaceCapabilities.maxImageCount) {
             imageCount = details.surfaceCapabilities.maxImageCount;
@@ -341,7 +344,7 @@ namespace RenderLib {
         return imageCount;
     }
 
-    static VulkanQueueFamilyIndices
+    inline static VulkanQueueFamilyIndices
     GetQueueFamilies(const std::shared_ptr<VulkanRenderSystem> &vulkanRenderSystem,
                      const std::shared_ptr<VulkanRenderDevice> &vulkanRenderDevice,
                      VkSurfaceKHR vkSurface) {
@@ -371,7 +374,7 @@ namespace RenderLib {
         };
     }
 
-    static std::vector<VkImage> GetSwapChainImages(VkDevice vkDevice, VkSwapchainKHR vkSwapChain) {
+    inline static std::vector<VkImage> GetSwapChainImages(VkDevice vkDevice, VkSwapchainKHR vkSwapChain) {
         uint32_t imageCount = 0;
         vkGetSwapchainImagesKHR(vkDevice, vkSwapChain, &imageCount, nullptr);
         std::vector<VkImage> swapChainImages(imageCount);
@@ -379,7 +382,7 @@ namespace RenderLib {
         return swapChainImages;
     }
 
-    static std::vector<VkImageView>
+    inline static std::vector<VkImageView>
     CreateSwapChainImageViews(VkFormat swapChainImageFormat, VkDevice vkDevice, const std::vector<VkImage> &images) {
         std::vector<VkImageView> swapChainImageViews(images.size());
         for (uint32_t i = 0; i < images.size(); i++) {
@@ -411,14 +414,14 @@ namespace RenderLib {
     }
 
 
-    static VkAttachmentReference MakeColorAttachmentRef() {
+    inline static VkAttachmentReference MakeColorAttachmentRef() {
         return VkAttachmentReference{
                 .attachment = 0,
                 .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         };
     }
 
-    static VkAttachmentDescription MakeColorAttachment(VkFormat imageFormat) {
+    inline static VkAttachmentDescription MakeColorAttachment(VkFormat imageFormat) {
         return VkAttachmentDescription{
                 .format = imageFormat,
                 .samples = VK_SAMPLE_COUNT_1_BIT, // Multi-sampling is not used (for now)
@@ -431,7 +434,7 @@ namespace RenderLib {
         };
     }
 
-    static VkRenderPass
+    inline static VkRenderPass
     CreateRenderPass(VkDevice vkDevice, const VkAttachmentReference &colorAttachmentRef,
                      const VkAttachmentDescription &colorAttachment) {
 
@@ -467,12 +470,12 @@ namespace RenderLib {
         return vkRenderPass;
     }
 
-    static std::shared_ptr<VulkanSwapChain> CreateSwapChain(const std::shared_ptr<GLFWWindowImpl> &window,
-                                                            VkDevice vkDevice,
-                                                            const std::shared_ptr<VulkanRenderDevice> &vulkanRenderDevice,
-                                                            VulkanQueueFamilyIndices queueFamilyIndices,
-                                                            VkSurfaceKHR vkSurface) {
-        auto swapChainSupportDetails = GetSwapChainSupportDetails(vulkanRenderDevice, vkSurface);
+    inline static std::shared_ptr<VulkanSwapChain> CreateSwapChain(const std::shared_ptr<GLFWWindowImpl> &window,
+                                                                   VkDevice vkDevice,
+                                                                   VkPhysicalDevice vkPhysicalDevice,
+                                                                   VulkanQueueFamilyIndices queueFamilyIndices,
+                                                                   VkSurfaceKHR vkSurface) {
+        auto swapChainSupportDetails = GetSwapChainSupportDetails(vkPhysicalDevice, vkSurface);
         auto surfaceFormat = ChooseSurfaceFormat(swapChainSupportDetails);
         if (!surfaceFormat) {
             RAISE_EXCEPTION(errorhandling::IllegalStateException, "No suitable surface format found");
@@ -532,16 +535,18 @@ namespace RenderLib {
         auto swapChain = new VulkanSwapChain;
         {
             swapChain->vkDevice = vkDevice;
+            swapChain->vkPhysicalDevice = vkPhysicalDevice;
             swapChain->vkSwapChain = vkSwapChain;
             swapChain->swapChainImages = swapChainImages;
             swapChain->swapChainImageViews = swapChainImageViews;
             swapChain->swapChainExtent = extent;
             swapChain->swapChainImageFormat = surfaceFormat->format;
+            swapChain->window = window;
         }
         return std::shared_ptr<VulkanSwapChain>(swapChain);
     }
 
-    VkCommandPool CreateCommandPool(VkDevice vkDevice, const VulkanQueueFamilyIndices &queueFamilyIndices) {
+    inline VkCommandPool CreateCommandPool(VkDevice vkDevice, const VulkanQueueFamilyIndices &queueFamilyIndices) {
         VkCommandPoolCreateInfo createInfo{
                 .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
                 .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
@@ -554,7 +559,7 @@ namespace RenderLib {
         return vkCommandPool;
     }
 
-    static VkSemaphore CreateSemaphore(VkDevice device) {
+    inline static VkSemaphore CreateSemaphore(VkDevice device) {
         VkSemaphoreCreateInfo createInfo{
                 .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
         };
@@ -564,6 +569,66 @@ namespace RenderLib {
                 "Failed to create semaphore"
         );
         return vkSemaphore;
+    }
+
+
+    VulkanFrameBuffer::VulkanFrameBuffer(VkDevice vkDevice,
+                                         std::vector<VkFramebuffer> frameBuffers) : FrameBuffer(VULKAN),
+                                                                                    vkDevice(vkDevice),
+                                                                                    frameBuffers(
+                                                                                            std::move(frameBuffers)) {
+    }
+
+    void VulkanFrameBuffer::dispose() {
+        if (disposed) {
+            return;
+        }
+        for (auto frameBuffer: frameBuffers) {
+            vkDestroyFramebuffer(vkDevice, frameBuffer, nullptr);
+        }
+        disposed = true;
+    }
+
+    VulkanFrameBuffer::~VulkanFrameBuffer() {
+        dispose();
+    }
+
+    static std::vector<VkFramebuffer>
+    CreateFrameBuffers(const VkDevice &vkDevice,
+                       const VkRenderPass &vkRenderPass,
+                       const std::vector<VkImageView> &swapChainImageViews,
+                       VkExtent2D swapChainExtent) {
+        std::vector<VkFramebuffer> swapChainFrameBuffers(swapChainImageViews.size());
+        for (uint32_t i = 0; i < swapChainImageViews.size(); i++) {
+            VkImageView attachments[] = {
+                    swapChainImageViews[i]
+            };
+            VkFramebufferCreateInfo framebufferInfo{
+                    .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                    .renderPass = vkRenderPass,
+                    .attachmentCount = 1,
+                    .pAttachments = attachments,
+                    .width = swapChainExtent.width,
+                    .height = swapChainExtent.height,
+                    .layers = 1
+            };
+            VULKAN_STATUS_VALIDATE(
+                    vkCreateFramebuffer(vkDevice, &framebufferInfo, nullptr, &swapChainFrameBuffers[i]),
+                    "Failed to create framebuffer"
+            );
+        }
+        return swapChainFrameBuffers;
+    }
+
+    static std::shared_ptr<VulkanFrameBuffer>
+    CreateFrameBuffer(VkDevice vkDevice, VkRenderPass vkRenderPass, const std::shared_ptr<VulkanSwapChain> &swapChain) {
+        auto swapChainImageViews = swapChain->swapChainImageViews;
+        auto swapChainExtent = swapChain->swapChainExtent;
+        auto frameBuffers = CreateFrameBuffers(vkDevice,
+                                               vkRenderPass,
+                                               swapChainImageViews,
+                                               swapChainExtent);
+        return std::make_shared<VulkanFrameBuffer>(vkDevice, frameBuffers);
     }
 
     std::shared_ptr<RenderContext>
@@ -590,6 +655,7 @@ namespace RenderLib {
                 computeQueueFamilyIndex = queueFamilyIndices.computeQueueFamilyIndex,
                 presentQueueFamilyIndex = queueFamilyIndices.presentQueueFamilyIndex;
 
+        VkPhysicalDevice vkPhysicalDevice = vulkanRenderDevice->vkPhysicalDevice;
         VkDevice vkDevice = CreateDevice(vulkanRenderSystem, vulkanRenderDevice,
                                          {graphicsQueueFamilyIndex, computeQueueFamilyIndex, presentQueueFamilyIndex});
 
@@ -600,7 +666,7 @@ namespace RenderLib {
         std::shared_ptr<VulkanSwapChain> swapChain = CreateSwapChain(
                 glfwWindow,
                 vkDevice,
-                vulkanRenderDevice,
+                vkPhysicalDevice,
                 queueFamilyIndices,
                 vkSurface
         );
@@ -618,6 +684,7 @@ namespace RenderLib {
             vulkanRenderContext->backend = VULKAN;
             vulkanRenderContext->vkInstance = vulkanRenderSystem->vkInstance;
             vulkanRenderContext->vkDevice = vkDevice;
+            vulkanRenderContext->vkPhysicalDevice = vkPhysicalDevice;
             vulkanRenderContext->vkSurface = vkSurface;
             vulkanRenderContext->vkRenderPass = renderPass;
             vulkanRenderContext->vkCommandPool = commandPool;
@@ -625,19 +692,21 @@ namespace RenderLib {
             vulkanRenderContext->presentQueue = presentQueue;
             vulkanRenderContext->computeQueue = computeQueue;
             vulkanRenderContext->vulkanSwapChain = swapChain;
+            vulkanRenderContext->queueFamilyIndices = queueFamilyIndices;
+            vulkanRenderContext->vulkanFrameBuffer = CreateFrameBuffer(vkDevice, renderPass, swapChain);
             vulkanRenderContext->imageAvailableSemaphore = imageAvailableSemaphore;
             vulkanRenderContext->renderFinishedSemaphore = renderFinishedSemaphore;
         }
         return std::shared_ptr<VulkanRenderContext>(vulkanRenderContext);
     }
 
-    std::vector<std::string> GetRequiredDeviceExtensions() {
+    inline std::vector<std::string> GetRequiredDeviceExtensions() {
         return {
                 VK_KHR_SWAPCHAIN_EXTENSION_NAME
         };
     }
 
-    std::string GetRenderSystemBackendName(RenderSystemBackend backend) {
+    inline std::string GetRenderSystemBackendName(RenderSystemBackend backend) {
         switch (backend) {
             case RenderSystemBackend::VULKAN:
                 return "Vulkan";
@@ -659,11 +728,103 @@ namespace RenderLib {
         vkDestroyInstance(vkInstance, nullptr);
     }
 
-    uint32_t VulkanRenderContext::acquireNextImage() const {
+    static inline void RecreateSwapChain(const std::shared_ptr<VulkanRenderContext> &renderContext) {
+        vkDeviceWaitIdle(renderContext->vkDevice); // wait for async operations to finish
+
+        auto swapChain = renderContext->vulkanSwapChain;
+        auto vkDevice = swapChain->vkDevice;
+        auto vkPhysicalDevice = swapChain->vkPhysicalDevice;
+        auto glfwWindow = swapChain->window;
+        auto vkSurface = renderContext->vkSurface;
+        auto queueFamilyIndices = renderContext->queueFamilyIndices;
+        renderContext->vulkanSwapChain->dispose();
+        renderContext->vulkanSwapChain = nullptr;
+        auto newSwapChain = CreateSwapChain(
+                glfwWindow,
+                vkDevice,
+                vkPhysicalDevice,
+                queueFamilyIndices,
+                vkSurface
+        );
+        renderContext->vulkanSwapChain = newSwapChain;
+    }
+
+    static inline void RecreateRenderPass(const std::shared_ptr<VulkanRenderContext> &renderContext) {
+        auto colorAttachment = MakeColorAttachment(renderContext->vulkanSwapChain->swapChainImageFormat);
+        auto colorAttachmentRef = MakeColorAttachmentRef();
+        auto renderPass = CreateRenderPass(renderContext->vkDevice, colorAttachmentRef, colorAttachment);
+        vkDestroyRenderPass(renderContext->vkDevice, renderContext->vkRenderPass, nullptr);
+        renderContext->vkRenderPass = renderPass;
+    }
+
+    static inline void RecreateGraphicsPipeline(const std::shared_ptr<VulkanGraphicsPipeline> &graphicsPipeline) {
+        auto renderContext = graphicsPipeline->vulkanRenderContext;
+        auto vertexFormat = graphicsPipeline->vertexFormat;
+        auto pipelineLayout = graphicsPipeline->pipelineLayout;
+        auto shaderProgram = graphicsPipeline->shaderProgram;
+        graphicsPipeline->dispose();
+        auto newGraphicsPipeline = CreateVulkanGraphicsPipelinePtr(renderContext, vertexFormat, pipelineLayout, shaderProgram);
+        graphicsPipeline->transferStateFrom(newGraphicsPipeline);
+        delete newGraphicsPipeline;
+    }
+
+    static inline void RecreateGraphicsPipeline(const std::shared_ptr<VulkanRenderContext> &renderContext) {
+        auto pipelines = renderContext->vulkanGraphicsPipelines;
+        for (auto &pipeline: pipelines) {
+            RecreateGraphicsPipeline(pipeline);
+        }
+    }
+
+    static inline void RecreateCommandBuffer(const std::shared_ptr<VulkanCommandBuffer> &commandBuffer) {
+        commandBuffer->dispose();
+        auto newCommandBuffer = CreateVulkanCommandBufferPtr(commandBuffer->vulkanRenderContext);
+        commandBuffer->transferStateFrom(newCommandBuffer);
+    }
+
+    static inline void RecreateCommandBuffers(const std::shared_ptr<VulkanRenderContext> &renderContext) {
+        auto nCommandBuffers = renderContext->vulkanCommandBuffers.size();
+
+        for (size_t i = 0; i < nCommandBuffers; i++) {
+            auto commandBuffer = renderContext->vulkanCommandBuffers[i];
+            RecreateCommandBuffer(commandBuffer);
+        }
+    }
+
+    static inline void RecreateFrameBuffer(const std::shared_ptr<VulkanRenderContext> &renderContext) {
+        renderContext->vulkanFrameBuffer->dispose();
+        renderContext->vulkanFrameBuffer = nullptr;
+        auto newFrameBuffer = CreateFrameBuffer(renderContext->vkDevice,
+                                                renderContext->vkRenderPass,
+                                                renderContext->vulkanSwapChain);
+        renderContext->vulkanFrameBuffer = newFrameBuffer;
+    }
+
+    static inline void ReCreateContext(const std::shared_ptr<VulkanRenderContext> &renderContext) {
+        RecreateSwapChain(renderContext);
+        RecreateRenderPass(renderContext);
+        RecreateGraphicsPipeline(renderContext);
+        RecreateFrameBuffer(renderContext);
+        RecreateCommandBuffers(renderContext);
+    }
+
+    static inline void
+    RecreateContextIfNecessary(VkResult vkResult, const std::shared_ptr<VulkanRenderContext> &renderContext) {
+        if (vkResult == VK_ERROR_OUT_OF_DATE_KHR) {
+            ReCreateContext(renderContext);
+        } else if (vkResult != VK_SUCCESS && vkResult != VK_SUBOPTIMAL_KHR) {
+            RAISE_EXCEPTION(errorhandling::IllegalStateException, "Failed to acquire swap chain image!");
+        }
+    }
+
+    inline uint32_t VulkanRenderContext::acquireNextImage() {
         uint32_t imageIndex;
         {
-            vkAcquireNextImageKHR(vkDevice, vulkanSwapChain->vkSwapChain, std::numeric_limits<uint64_t>::max(),
-                                  imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+            RecreateContextIfNecessary(
+                    vkAcquireNextImageKHR(vkDevice, vulkanSwapChain->vkSwapChain,
+                                          std::numeric_limits<uint64_t>::max(),
+                                          imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex),
+                    std::shared_ptr<VulkanRenderContext>(this, [](VulkanRenderContext *) {})
+            );
         }
         return imageIndex;
     }
@@ -696,14 +857,16 @@ namespace RenderLib {
                 .pImageIndices = &currentImageIndex,
                 .pResults = nullptr
         };
-        VULKAN_STATUS_VALIDATE(
+
+        RecreateContextIfNecessary(
                 vkQueuePresentKHR(presentQueue, &presentInfo),
-                "Failed to present swap chain image"
+                std::shared_ptr<VulkanRenderContext>(this, [](VulkanRenderContext *) {})
         );
     }
 
     void VulkanRenderContext::beginFrame() {
         currentImageIndex = acquireNextImage();
+
     }
 
     void VulkanRenderContext::drawFrame(const std::shared_ptr<CommandBuffer> &commandBuffer) {
@@ -719,11 +882,102 @@ namespace RenderLib {
     void VulkanRenderContext::endFrame() {
     }
 
-    VulkanSwapChain::~VulkanSwapChain() {
+    void VulkanSwapChain::dispose() {
+        if (disposed) {
+            return;
+        }
         for (auto &swapChainImageView: swapChainImageViews) {
             vkDestroyImageView(vkDevice, swapChainImageView, nullptr);
         }
         vkDestroySwapchainKHR(vkDevice, vkSwapChain, nullptr);
+        disposed = true;
+    }
+
+    VulkanSwapChain::~VulkanSwapChain() {
+        dispose();
+    }
+
+    std::string GetVulkanResultString(VkResult result) {
+        switch (result) {
+            case 0:
+                return "VK_SUCCESS";
+            case 1:
+                return "VK_NOT_READY";
+            case 2:
+                return "VK_TIMEOUT";
+            case 3:
+                return "VK_EVENT_SET";
+            case 4:
+                return "VK_EVENT_RESET";
+            case 5:
+                return "VK_INCOMPLETE";
+            case -1:
+                return "VK_ERROR_OUT_OF_HOST_MEMORY";
+            case -2:
+                return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+            case -3:
+                return "VK_ERROR_INITIALIZATION_FAILED";
+            case -4:
+                return "VK_ERROR_DEVICE_LOST";
+            case -5:
+                return "VK_ERROR_MEMORY_MAP_FAILED";
+            case -6:
+                return "VK_ERROR_LAYER_NOT_PRESENT";
+            case -7:
+                return "VK_ERROR_EXTENSION_NOT_PRESENT";
+            case -8:
+                return "VK_ERROR_FEATURE_NOT_PRESENT";
+            case -9:
+                return "VK_ERROR_INCOMPATIBLE_DRIVER";
+            case -10:
+                return "VK_ERROR_TOO_MANY_OBJECTS";
+            case -11:
+                return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+            case -12:
+                return "VK_ERROR_FRAGMENTED_POOL";
+            case -13:
+                return "VK_ERROR_UNKNOWN";
+            case -1000069000:
+                return "VK_ERROR_OUT_OF_POOL_MEMORY";
+            case -1000072003:
+                return "VK_ERROR_INVALID_EXTERNAL_HANDLE";
+            case -1000161000:
+                return "VK_ERROR_FRAGMENTATION";
+            case -1000257000:
+                return "VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS";
+            case -1000000000:
+                return "VK_ERROR_SURFACE_LOST_KHR";
+            case -1000000001:
+                return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+            case 1000001003:
+                return "VK_SUBOPTIMAL_KHR";
+            case -1000001004:
+                return "VK_ERROR_OUT_OF_DATE_KHR";
+            case -1000003001:
+                return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
+            case -1000011001:
+                return "VK_ERROR_VALIDATION_FAILED_EXT";
+            case -1000012000:
+                return "VK_ERROR_INVALID_SHADER_NV";
+            case -1000158000:
+                return "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT";
+            case -1000174001:
+                return "VK_ERROR_NOT_PERMITTED_EXT";
+            case -1000255000:
+                return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
+            case 1000268000:
+                return "VK_THREAD_IDLE_KHR";
+            case 1000268001:
+                return "VK_THREAD_DONE_KHR";
+            case 1000268002:
+                return "VK_OPERATION_DEFERRED_KHR";
+            case 1000268003:
+                return "VK_OPERATION_NOT_DEFERRED_KHR";
+            case 1000297000:
+                return "VK_PIPELINE_COMPILE_REQUIRED_EXT";
+            case 0x7FFFFFFF:
+                return "VK_RESULT_MAX_ENUM";
+        }
     }
 }
 

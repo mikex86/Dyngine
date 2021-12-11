@@ -1,5 +1,6 @@
 #pragma once
 
+#include <RenderLib/RenderLibVulkan_Internal.hpp>
 #include <RenderLib/Windowing.hpp>
 #include <GLFW/glfw3.h>
 
@@ -9,30 +10,25 @@ namespace RenderLib {
     public:
         GLFWwindow *glfwWindow;
 
-        explicit GLFWWindowImpl(GLFWwindow *windowHandle) : glfwWindow(windowHandle), Window(RenderSystemBackend::VULKAN) {
+        explicit GLFWWindowImpl(GLFWwindow *windowHandle) : glfwWindow(windowHandle),
+                                                            Window(RenderSystemBackend::VULKAN) {
         }
 
     public:
 
-        void show() override {
-            glfwShowWindow(glfwWindow);
-        }
+        int getWidth() override;
 
-        void update() override {
-            glfwPollEvents();
-        }
+        int getHeight() override;
 
-        void close() override {
-            glfwSetWindowShouldClose(glfwWindow, GLFW_TRUE);
-        }
+        void show() override;
 
-        bool shouldClose() override {
-            return glfwWindowShouldClose(glfwWindow);
-        }
+        void update() override;
 
-        ~GLFWWindowImpl() {
-            glfwDestroyWindow(glfwWindow);
-        }
+        void close() override;
+
+        bool shouldClose() override;
+
+        ~GLFWWindowImpl();
     };
 
 }

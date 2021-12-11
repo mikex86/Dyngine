@@ -12,6 +12,9 @@ namespace RenderLib {
 
         explicit Window(RenderSystemBackend backend);
 
+        [[nodiscard]] virtual int getWidth() = 0;
+        [[nodiscard]] virtual int getHeight() = 0;
+
         virtual void show() = 0;
 
         virtual void update() = 0;

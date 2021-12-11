@@ -6,15 +6,6 @@
 
 namespace RenderLib {
 
-    struct GraphicsPipeline {
-    public:
-        RenderSystemBackend backend;
-
-        explicit GraphicsPipeline(RenderSystemBackend backend);
-
-        virtual ~GraphicsPipeline();
-    };
-
     /**
      * Describes a uniform variable that the pipeline's shader accepts.
      */
@@ -33,10 +24,23 @@ namespace RenderLib {
         std::vector<ShaderType> acceptingShaderTypes;
     };
 
+
     struct PipelineLayout {
 
         std::vector<UniformDescriptor> uniformDescriptors;
 
+    };
+
+    struct GraphicsPipeline {
+    public:
+        RenderSystemBackend backend;
+        VertexFormat vertexFormat;
+        PipelineLayout pipelineLayout;
+        std::shared_ptr<ShaderProgram> shaderProgram;
+
+        explicit GraphicsPipeline(RenderSystemBackend backend, VertexFormat vertexFormat, PipelineLayout pipelineLayout, std::shared_ptr<ShaderProgram> shaderProgram);
+
+        virtual ~GraphicsPipeline();
     };
 
     std::shared_ptr<GraphicsPipeline> CreateGraphicsPipeline(const std::shared_ptr<RenderLib::RenderContext> &renderContext,

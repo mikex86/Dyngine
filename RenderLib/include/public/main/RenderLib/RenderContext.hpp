@@ -38,6 +38,14 @@ namespace RenderLib {
 
     struct CommandBuffer;
 
+    struct FrameBuffer {
+        RenderSystemBackend backend;
+
+        explicit FrameBuffer(RenderSystemBackend backend);
+
+        virtual ~FrameBuffer();
+    };
+
     struct RenderContext {
 
     public:

@@ -1,7 +1,8 @@
 #pragma once
 
-#include <RenderLib/ShaderUtil.hpp>
+#include <RenderLib/RenderLibVulkan_Internal.hpp>
 #include <RenderLib/RenderContextVulkan_Internal.hpp>
+#include <RenderLib/ShaderUtil.hpp>
 
 namespace RenderLib {
 

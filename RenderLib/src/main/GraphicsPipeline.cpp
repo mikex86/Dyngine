@@ -1,10 +1,13 @@
 #include <RenderLib/GraphicsPipeline.hpp>
+#include <utility>
 
 namespace RenderLib {
 
-    GraphicsPipeline::GraphicsPipeline(RenderSystemBackend backend) : backend(backend) {
-    }
-
     GraphicsPipeline::~GraphicsPipeline() = default;
 
+    GraphicsPipeline::GraphicsPipeline(RenderSystemBackend backend, VertexFormat vertexFormat,
+                                       PipelineLayout pipelineLayout, std::shared_ptr<ShaderProgram> shaderProgram)
+            : backend(backend), vertexFormat(std::move(vertexFormat)), pipelineLayout(std::move(pipelineLayout)),
+              shaderProgram(std::move(shaderProgram)) {
+    }
 }
