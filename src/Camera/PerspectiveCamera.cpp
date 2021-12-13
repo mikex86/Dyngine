@@ -40,14 +40,10 @@ void PerspectiveCamera::setDirection(const glm::vec3 &direction) {
     hasChanged = true;
 }
 
-void PerspectiveCamera::setYaw(float yawDegrees) {
-    direction.x = cos(glm::radians(yawDegrees));
-    direction.z = sin(glm::radians(yawDegrees));
-    hasChanged = true;
-}
-
-void PerspectiveCamera::setPitch(float pitchDegrees) {
+void PerspectiveCamera::setRotation(float yawDegrees, float pitchDegrees) {
+    direction.x = cos(glm::radians(yawDegrees)) * cos(glm::radians(pitchDegrees));
     direction.y = sin(glm::radians(pitchDegrees));
+    direction.z = sin(glm::radians(yawDegrees)) * cos(glm::radians(pitchDegrees));
     hasChanged = true;
 }
 

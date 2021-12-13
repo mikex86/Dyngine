@@ -4,6 +4,7 @@
 #include "Shader/ShaderUtil.hpp"
 #include "LLGL/Strings.h"
 #include "Camera/PerspectiveCamera.hpp"
+#include "Camera/controller/FlyingPerspectiveCameraController.hpp"
 #include <LLGL/Utility.h>
 
 std::shared_ptr<LLGL::RenderSystem> setupRenderSystem() {
@@ -206,62 +207,14 @@ void RunEngine() {
 
     std::unique_ptr<LLGL::Timer> frameTimer = LLGL::Timer::Create();
 
-    std::unique_ptr<LLGL::Display> display = window->FindResidentDisplay();
+    std::shared_ptr<LLGL::Display> display = window->FindResidentDisplay();
+
+    FlyingPerspectiveCameraController cameraController(camera, input, display, window);
 
     // Main loop
     while (window->ProcessEvents()) {
-        frameTimer->MeasureTime();
-        float moveForward = 0;
-        float moveStrafing = 0;
-        float moveUp = 0;
-        {
-            bool wPressed = input->KeyPressed(LLGL::Key::W);
-            bool sPressed = input->KeyPressed(LLGL::Key::S);
-            bool aPressed = input->KeyPressed(LLGL::Key::A);
-            bool dPressed = input->KeyPressed(LLGL::Key::D);
-            bool spacePressed = input->KeyPressed(LLGL::Key::Space);
-            bool shiftPressed = input->KeyPressed(LLGL::Key::Shift);
-            if (wPressed ^ sPressed) {
-                if (wPressed)
-                    moveForward = 1;
-                if (sPressed)
-                    moveForward = -1;
-            }
-            if (aPressed ^ dPressed) {
-                if (aPressed)
-                    moveStrafing = 1;
-                if (dPressed)
-                    moveStrafing = -1;
-            }
-            if (spacePressed ^ shiftPressed) {
-                if (spacePressed)
-                    moveUp = 1;
-                if (shiftPressed)
-                    moveUp = -1;
-            }
-        }
-        windowSize = window->GetSize();
-        auto windowPosition = window->GetPosition();
 
-        if (window->HasFocus()) {
-            display->ShowCursor(false);
-            display->SetCursorPosition(static_cast<int>(windowPosition.x + windowSize.width / 2),
-                                       static_cast<int>(windowPosition.y + windowSize.height / 2));
-            auto mouseMotion = input->GetMouseMotion();
-            camera.setYaw(camera.getYaw() + static_cast<float>(mouseMotion.x) * 0.1f);
-            camera.setPitch(camera.getPitch() + static_cast<float>(mouseMotion.y) * -0.1f);
-        } else {
-            display->ShowCursor(true);
-        }
-
-        if (moveStrafing != 0 || moveForward != 0 || moveUp != 0) {
-            auto deltaTime = static_cast<float>(frameTimer->GetDeltaTime());
-            auto direction = camera.getDirection() * moveForward + camera.getCameraRight() * moveStrafing +
-                             camera.getCameraUp() * moveUp;
-            auto speed = 2.0f * deltaTime;
-            camera.setPosition(camera.getPosition() + direction * speed);
-        }
-
+        // Update aspect ratio
         if (windowSize.width != 0 && windowSize.height != 0) {
             auto newAspectRatio = static_cast<float>(windowSize.width) / static_cast<float>(windowSize.height);
             if (newAspectRatio != aspectRatio) {
@@ -270,9 +223,13 @@ void RunEngine() {
             }
         }
 
+        // Update context resolution
         auto videoMode = renderContext->GetVideoMode();
         videoMode.resolution = windowSize;
         renderContext->SetVideoMode(videoMode);
+
+        // Update camera
+        cameraController.update(static_cast<float>(frameTimer->GetDeltaTime()));
 
         auto hasChanged = camera.update();
 
@@ -302,6 +259,7 @@ void RunEngine() {
         }
         queue->Submit(*mainCmd);
         renderContext->Present();
+        frameTimer->MeasureTime();
     }
 }
 

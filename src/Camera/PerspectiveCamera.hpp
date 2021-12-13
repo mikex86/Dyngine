@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Camera.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -9,7 +10,7 @@ struct CameraShaderState {
     glm::mat4 modelMatrix{};
 };
 
-class PerspectiveCamera {
+class PerspectiveCamera : public ICamera {
 private:
     float fov, aspect, near, far;
     glm::vec3 position{};
@@ -23,15 +24,13 @@ public:
 
     PerspectiveCamera(float fovDegrees, float aspect, float near, float far);
 
-    bool update();
+    bool update() override;
 
     void setPosition(const glm::vec3 &position);
 
     void setDirection(const glm::vec3 &direction);
 
-    void setYaw(float yawDegrees);
-
-    void setPitch(float pitchDegrees);
+    void setRotation(float yawDegrees, float pitchDegrees);
 
     void setRoll(float rollDegrees);
 
