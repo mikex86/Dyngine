@@ -46,10 +46,17 @@ add_subdirectory("${CMAKE_SOURCE_DIR}/DpacTools")
 set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
 set(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
 
-# Low Level Graphics Library
-set(LLGL_GRAPHICS_API Direct3D12)
+# OpenGL Math Library
+add_subdirectory("${CMAKE_SOURCE_DIR}/libraries/glm")
+target_link_libraries(Dyngine PUBLIC glm)
 
-if (${LLGL_GRAPHICS_API} MATCHES "Vulkan")
+# Low Level Graphics Library
+set(LLGL_GRAPHICS_API OpenGL)
+
+if (${LLGL_GRAPHICS_API} MATCHES "OpenGL")
+    target_compile_definitions(Dyngine PRIVATE DYNGINE_USE_OPENGL_API)
+    set(LLGL_BUILD_RENDERER_OPENGL ON)
+elseif (${LLGL_GRAPHICS_API} MATCHES "Vulkan")
     target_compile_definitions(Dyngine PRIVATE DYNGINE_USE_VULKAN_API)
     set(LLGL_BUILD_RENDERER_VULKAN ON) # Vulkan SDK required
 elseif (${LLGL_GRAPHICS_API} MATCHES "Direct3D12")
@@ -65,7 +72,7 @@ add_subdirectory("${CMAKE_SOURCE_DIR}/libraries/LLGL")
 # Disable warnings and errors on CLANG
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     if (${LLGL_GRAPHICS_API} MATCHES "Vulkan")
-        target_compile_options(LLGL_Direct3D12 PRIVATE -Wno-switch)
+        target_compile_options(LLGL_Vulkan PRIVATE -Wno-switch)
     elseif (${LLGL_GRAPHICS_API} MATCHES "Direct3D11")
         target_compile_options(LLGL_Direct3D11 PRIVATE -Wno-address-of-temporary -Wno-class-conversion -Wno-switch)
     elseif (${LLGL_GRAPHICS_API} MATCHES "Direct3D12")
@@ -115,7 +122,7 @@ foreach (vert_shader_file IN LISTS GLSL_VERTEX_SHADER_SOURCE_FILES)
             -o "${SHADER_BINARY_DIR}/${FILENAME}.spv"
             ${vert_shader_file}
             OUTPUT "${SHADER_BINARY_DIR}/${FILENAME}.spv"
-            DEPENDS "${spirv_file}" "${SHADER_BINARY_DIR}"
+            DEPENDS "${vert_shader_file}" "${SHADER_BINARY_DIR}"
             COMMENT "Compiling Spir-V Shader \"${FILENAME}\""
     )
     list(APPEND SPV_SHADERS "${SHADER_BINARY_DIR}/${FILENAME}.spv")
@@ -131,7 +138,7 @@ foreach (frag_shader_file IN LISTS GLSL_FRAGMENT_SHADER_SOURCE_FILES)
             -o "${SHADER_BINARY_DIR}/${FILENAME}.spv"
             ${frag_shader_file}
             OUTPUT "${SHADER_BINARY_DIR}/${FILENAME}.spv"
-            DEPENDS "${spirv_file}" "${SHADER_BINARY_DIR}"
+            DEPENDS "${frag_shader_file}" "${SHADER_BINARY_DIR}"
             COMMENT "Compiling Spir-V Shader \"${FILENAME}\""
     )
     list(APPEND SPV_SHADERS "${SHADER_BINARY_DIR}/${FILENAME}.spv")
@@ -193,7 +200,7 @@ add_custom_command(
         COMMENT "Packaging engine resources"
         OUTPUT "${ENGINE_RESOURCE_PACKAGE}"
 )
-add_custom_target(Dyngine_PackageResources ALL DEPENDS "${ENGINE_RESOURCE_PACKAGE}")
+add_custom_target(Dyngine_PackageResources ALL DEPENDS ${ENGINE_RESOURCE_PACKAGE})
 add_dependencies(Dyngine_PackageResources DpacDeflate)
 
 # Setup Working Directory
