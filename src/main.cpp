@@ -244,12 +244,14 @@ void RunEngine() {
         auto windowPosition = window->GetPosition();
 
         if (window->HasFocus()) {
+            display->ShowCursor(false);
             display->SetCursorPosition(static_cast<int>(windowPosition.x + windowSize.width / 2),
                                        static_cast<int>(windowPosition.y + windowSize.height / 2));
             auto mouseMotion = input->GetMouseMotion();
             camera.setYaw(camera.getYaw() + static_cast<float>(mouseMotion.x) * 0.1f);
             camera.setPitch(camera.getPitch() + static_cast<float>(mouseMotion.y) * -0.1f);
         } else {
+            display->ShowCursor(true);
         }
 
         if (moveStrafing != 0 || moveForward != 0 || moveUp != 0) {
