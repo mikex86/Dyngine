@@ -91,7 +91,7 @@ void RunEngine() {
         vertexBuffer = renderSystem->CreateBuffer(vertexBufferDesc, vertices);
     }
 
-    auto windowSize = window->GetContentSize();
+    auto windowSize = window->GetSize();
 
     auto aspectRatio = static_cast<float>(windowSize.width) / static_cast<float>(windowSize.height);
 
@@ -214,6 +214,13 @@ void RunEngine() {
     // Main loop
     while (window->ProcessEvents()) {
 
+        windowSize = window->GetSize();
+
+        // Update context resolution
+        auto videoMode = renderContext->GetVideoMode();
+        videoMode.resolution = windowSize;
+        renderContext->SetVideoMode(videoMode);
+
         // Update aspect ratio
         if (windowSize.width != 0 && windowSize.height != 0) {
             auto newAspectRatio = static_cast<float>(windowSize.width) / static_cast<float>(windowSize.height);
@@ -222,11 +229,6 @@ void RunEngine() {
                 aspectRatio = newAspectRatio;
             }
         }
-
-        // Update context resolution
-        auto videoMode = renderContext->GetVideoMode();
-        videoMode.resolution = windowSize;
-        renderContext->SetVideoMode(videoMode);
 
         // Update camera
         cameraController.update(static_cast<float>(frameTimer->GetDeltaTime()));
