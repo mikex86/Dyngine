@@ -1,24 +1,34 @@
 #pragma once
 
 #include <ErrorHandling/ErrorHandling.hpp>
-#include <Buffer/FileDataReadBuffer.hpp>
-#include <Buffer/FileDataWriteBuffer.hpp>
+#include <Stream/FileDataReadStream.hpp>
+#include <Stream/FileDataWriteStream.hpp>
 #include <map>
 #include <vector>
 #include <string>
 
-namespace dpac {
+#define DPAC_MAX_PATH 128
+
+
+namespace Dpac {
 
     NEW_EXCEPTION_TYPE(ArchiveOpenFailedException);
+
     NEW_EXCEPTION_TYPE(ArchiveCloseFailedException);
-    NEW_EXCEPTION_TYPE(ArchiveFileTableAlreadyFinalizedException);
-    NEW_EXCEPTION_TYPE(ArchiveFileNotDefinedException);
-    NEW_EXCEPTION_TYPE(ArchiveFileTableNotYetFinalizedException);
+
+    NEW_EXCEPTION_TYPE(ArchiveTooFewEntriesReservedException);
+
+    NEW_EXCEPTION_TYPE(ArchiveEntryNotDefinedException);
+
+    NEW_EXCEPTION_TYPE(ArchiveEntryTableNotYetFinalizedException);
+
     NEW_EXCEPTION_TYPE(EntryDoesNotExistException);
+
+    NEW_EXCEPTION_TYPE(ArchiveEntryTableAlreadyFinalizedException);
 
     class ReadOnlyArchive {
     private:
-        buffer::FileDataReadBuffer dataBuffer;
+        Stream::FileDataReadStream dataStream;
 
         uint64_t heapStart{};
 
@@ -29,9 +39,14 @@ namespace dpac {
         std::map<std::string, uint64_t> entryContentOffsetTable{};
 
         /**
-         * Stores the sizes of all entries
+         * Stores the uncompressed sizes of all entries
          */
-        std::map<std::string, uint64_t > entryContentSizeTable;
+        std::map<std::string, uint64_t> entryContentCompressedSizeTable{};
+
+        /**
+         * Stores the uncompressed sizes of all entries
+         */
+        std::map<std::string, uint64_t> entryContentUncompressedSizeTable{};
 
         explicit ReadOnlyArchive(const std::string &archiveFilePath);
 
@@ -41,12 +56,14 @@ namespace dpac {
 
         [[nodiscard]] const std::map<std::string, uint64_t> &getFileContentOffsetTable() const;
 
-        [[nodiscard]] buffer::FileDataReadBuffer getEntryStream(const std::string &entryName);
+        [[nodiscard]] std::unique_ptr<Stream::DataReadStream> getEntryStream(const std::string &entryName);
+
+        uint64_t getUncompressedEntrySize(const std::string &entryName);
     };
 
     class WriteOnlyArchive {
     private:
-        buffer::FileDataWriteBuffer dataBuffer;
+        Stream::FileDataWriteStream dataStream;
 
         /**
          * A variable used to keep track where new entries should be placed in the heap, which is
@@ -60,9 +77,14 @@ namespace dpac {
          */
         std::map<std::string, uint64_t> entryContentOffsetTable{};
 
-        bool entryTableComplete = false;
-
         uint64_t heapStart = -1;
+
+        /**
+         * Stores the number of entries reserved in the archive file.
+         */
+        uint64_t numEntries = 0;
+
+        bool entryTableFinalized = false;
 
         explicit WriteOnlyArchive(const std::string &archiveFilePath);
 
@@ -70,11 +92,17 @@ namespace dpac {
 
         static WriteOnlyArchive Open(const std::string &archiveFilePath);
 
-        void createEntry(const std::string &entryName, uint64_t contentLength);
+        void defineEntryFromUncompressedStream(uint64_t entryIndex, const std::string &entryName,
+                                               Stream::DataReadStream &uncompressedStream);
+
+        void reserveNEntries(uint64_t numEntries);
 
         void finalizeEntryTable();
 
-        void createEntryContentDefinition(const std::string &entryName, std::ifstream &sourceStream);
+        void close();
+
+    private:
+        static uint64_t getEntryTableOffset(uint64_t entryIndex);
     };
 
 }

@@ -24,16 +24,25 @@ target_include_directories(Dyngine PRIVATE private/)
 
 # Initialize submodules and link libraries
 
+# Google Test
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/libraries/googletest)
+
+# zstd compression
+set(ZSTD_BUILD_STATIC ON)
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/libraries/zstd/build/cmake")
+
 # ErrorHandling Module
 add_subdirectory("${CMAKE_SOURCE_DIR}/ErrorHandling")
-target_link_libraries(Dyngine PUBLIC Dyngine_ErrorHandling)
+target_link_libraries(Dyngine PRIVATE Dyngine_ErrorHandling)
 
 # Utils Module
 add_subdirectory("${CMAKE_SOURCE_DIR}/Utils")
-target_link_libraries(Dyngine PUBLIC Dyngine_Utils)
+target_link_libraries(Dyngine PRIVATE Dyngine_Utils)
 
-# Buffer Module
-add_subdirectory("${CMAKE_SOURCE_DIR}/Buffer")
+# InputOutput Module
+add_subdirectory("${CMAKE_SOURCE_DIR}/InputOutput")
 
 # Dpac Module
 add_subdirectory("${CMAKE_SOURCE_DIR}/Dpac")
@@ -41,6 +50,10 @@ target_link_libraries(Dyngine PRIVATE Dyngine_Dpac)
 
 # Dpac CLI tools
 add_subdirectory("${CMAKE_SOURCE_DIR}/DpacTools")
+
+# AssetLoader Module
+add_subdirectory("${CMAKE_SOURCE_DIR}/AssetLoader")
+target_link_libraries(Dyngine PRIVATE Dyngine_AssetLoader)
 
 # Reset the executable and library output path (changed by DpacTools submodule)
 set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
@@ -93,9 +106,11 @@ target_link_libraries(Dyngine PUBLIC LLGL LLGL_${LLGL_GRAPHICS_API})
 
 # Build Engine Resources
 
+set(RESOURCES_DIRECTORY "${CMAKE_BINARY_DIR}/resources")
+
 # Compile Spir-V shaders
 set(SHADER_SOURCE_DIR "${CMAKE_SOURCE_DIR}/shaders")
-set(SHADER_BINARY_DIR "${CMAKE_BINARY_DIR}/shaders/spirv")
+set(SHADER_BINARY_DIR "${RESOURCES_DIRECTORY}/shaders")
 
 file(GLOB_RECURSE GLSL_VERTEX_SHADER_SOURCE_FILES CONFIGURE_DEPENDS "${SHADER_SOURCE_DIR}/*.vert.glsl")
 file(GLOB_RECURSE GLSL_FRAGMENT_SHADER_SOURCE_FILES CONFIGURE_DEPENDS "${SHADER_SOURCE_DIR}/*.frag.glsl")
@@ -194,7 +209,7 @@ add_custom_command(
 add_custom_command(
         COMMAND
         "${CMAKE_BINARY_DIR}/DpacTools/DpacDeflate"
-        "${SHADER_BINARY_DIR}"
+        "${RESOURCES_DIRECTORY}"
         "${ENGINE_RESOURCE_PACKAGE}"
         DEPENDS "${SHADER_BINARY_DIR}" "${ENGINE_WORKING_DIRECTORY}" "${CMAKE_BINARY_DIR}/DpacTools/DpacDeflate" ${SPV_SHADERS} ${HLSL_SHADERS}
         COMMENT "Packaging engine resources"

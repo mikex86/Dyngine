@@ -32,7 +32,7 @@ std::shared_ptr<LLGL::RenderSystem> setupRenderSystem() {
 
 void RunEngine() {
     // Read Engine Resources
-    dpac::ReadOnlyArchive engineResources = dpac::ReadOnlyArchive::Open("EngineResources.dpac");
+    Dpac::ReadOnlyArchive engineResources = Dpac::ReadOnlyArchive::Open("EngineResources.dpac");
 
     // Load render system module
     std::shared_ptr<LLGL::RenderSystem> renderSystem = setupRenderSystem();
@@ -105,21 +105,21 @@ void RunEngine() {
     {
         LLGL::Shader *vertexShader, *fragmentShader;
         if (ShaderUtil::IsSupported(renderSystem, LLGL::ShadingLanguage::SPIRV)) {
-            vertexShader = ShaderUtil::LoadSpirVShader(engineResources, "/triangle.vert.glsl.spv",
+            vertexShader = ShaderUtil::LoadSpirVShader(engineResources, "/shaders/triangle.vert.glsl.spv",
                                                        renderSystem,
                                                        LLGL::ShaderType::Vertex,
                                                        vertexFormat
             );
 
             fragmentShader = ShaderUtil::LoadSpirVShader(engineResources,
-                                                         "/triangle.frag.glsl.spv",
+                                                         "/shaders/triangle.frag.glsl.spv",
                                                          renderSystem,
                                                          LLGL::ShaderType::Fragment,
                                                          vertexFormat
             );
         } else {
             vertexShader = ShaderUtil::LoadHLSLShader(engineResources,
-                                                      "/triangle.vert.hlsl.cso",
+                                                      "/shaders/triangle.vert.hlsl.cso",
                                                       renderSystem,
                                                       LLGL::ShaderType::Vertex,
                                                       vertexFormat,
@@ -128,7 +128,7 @@ void RunEngine() {
             );
 
             fragmentShader = ShaderUtil::LoadHLSLShader(engineResources,
-                                                        "/triangle.frag.hlsl.cso",
+                                                        "/shaders/triangle.frag.hlsl.cso",
                                                         renderSystem,
                                                         LLGL::ShaderType::Fragment,
                                                         vertexFormat,

@@ -9,11 +9,12 @@ namespace ShaderUtil {
 
     bool IsSupported(const std::shared_ptr<LLGL::RenderSystem> &renderSystem, LLGL::ShadingLanguage lang) {
         const auto &supportedShadingLanguages = renderSystem->GetRenderingCaps().shadingLanguages;
-        return (std::find(supportedShadingLanguages.begin(), supportedShadingLanguages.end(), lang) != supportedShadingLanguages.end());
+        return (std::find(supportedShadingLanguages.begin(), supportedShadingLanguages.end(), lang) !=
+                supportedShadingLanguages.end());
     }
 
     LLGL::Shader *
-    LoadSpirVShader(dpac::ReadOnlyArchive &archive, const std::string &entryName,
+    LoadSpirVShader(Dpac::ReadOnlyArchive &archive, const std::string &entryName,
                     const std::shared_ptr<LLGL::RenderSystem> &renderSystem,
                     LLGL::ShaderType shaderType,
                     const LLGL::VertexFormat &vertexFormat
@@ -22,21 +23,17 @@ namespace ShaderUtil {
             RAISE_EXCEPTION(errorhandling::IllegalStateException, "Spir-V shading language not available");
         }
 
-        char *shaderContent;
+        uint8_t *shaderContent;
         uint64_t shaderContentSize;
         {
             auto shaderContentStream = archive.getEntryStream(entryName);
-            shaderContentSize = shaderContentStream.getSize();
-            shaderContent = new char[shaderContentSize];
-
-            for (uint64_t i = 0; i < shaderContentSize; i++) {
-                char byte = shaderContentStream.readInt8();
-                shaderContent[i] = byte;
-            }
+            shaderContentSize = archive.getUncompressedEntrySize(entryName);
+            shaderContent = new uint8_t[shaderContentSize];
+            shaderContentStream->read(shaderContent, shaderContentSize);
         }
         LLGL::ShaderDescriptor shaderDesc = {
                 shaderType,
-                shaderContent,
+                reinterpret_cast<char *>(shaderContent),
                 "main",
                 nullptr
         };
@@ -48,12 +45,13 @@ namespace ShaderUtil {
         delete[] shaderContent;
         if (shader == nullptr || shader->HasErrors()) {
             std::string shaderLog = shader->GetReport();
-            RAISE_EXCEPTION(ShaderLoadingException, "Could not create shader from shader description. Shader Log: " + shaderLog);
+            RAISE_EXCEPTION(ShaderLoadingException,
+                            "Could not create shader from shader description. Shader Log: " + shaderLog);
         }
         return shader;
     }
 
-    LLGL::Shader *LoadHLSLShader(dpac::ReadOnlyArchive &archive, const std::string &entryName,
+    LLGL::Shader *LoadHLSLShader(Dpac::ReadOnlyArchive &archive, const std::string &entryName,
                                  const std::shared_ptr<LLGL::RenderSystem> &renderSystem, LLGL::ShaderType shaderType,
                                  const LLGL::VertexFormat &vertexFormat,
                                  const std::string &entryPoint,
@@ -63,26 +61,21 @@ namespace ShaderUtil {
             RAISE_EXCEPTION(errorhandling::IllegalStateException, "HLSL shading language not available");
         }
 
-        char *shaderContent;
+        uint8_t *shaderContent;
         uint64_t shaderContentSize;
         {
             auto shaderContentStream = archive.getEntryStream(entryName);
-            shaderContentSize = shaderContentStream.getSize();
-            shaderContent = new char[shaderContentSize];
-
-            for (uint64_t i = 0; i < shaderContentSize; i++) {
-                char byte = shaderContentStream.readInt8();
-                shaderContent[i] = byte;
-            }
+            shaderContentSize = archive.getUncompressedEntrySize(entryName);
+            shaderContent = new uint8_t[shaderContentSize];
+            shaderContentStream->read(shaderContent, shaderContentSize);
         }
         LLGL::ShaderDescriptor shaderDesc = {
                 shaderType,
-                shaderContent,
+                reinterpret_cast<char *>(shaderContent),
                 entryPoint.c_str(),
                 profile.c_str()
         };
         shaderDesc.sourceType = LLGL::ShaderSourceType::BinaryBuffer;
-        shaderDesc.source = shaderContent;
         shaderDesc.sourceSize = shaderContentSize;
         shaderDesc.vertex.inputAttribs = vertexFormat.attributes;
         LLGL::Shader *shader = renderSystem->CreateShader(shaderDesc);
@@ -90,7 +83,8 @@ namespace ShaderUtil {
 
         if (shader == nullptr || shader->HasErrors()) {
             std::string shaderLog = shader->GetReport();
-            RAISE_EXCEPTION(ShaderLoadingException, "Could not create shader from shader description. Shader Log: " + shaderLog);
+            RAISE_EXCEPTION(ShaderLoadingException,
+                            "Could not create shader from shader description. Shader Log: " + shaderLog);
         }
         return shader;
     }

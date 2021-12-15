@@ -10,8 +10,8 @@ int run(int argc, char **argv) {
     }
     std::string dpacFilePath = argv[1];
     std::string archiveFileName = argv[2];
-    dpac::ReadOnlyArchive archive = dpac::ReadOnlyArchive::Open(dpacFilePath);
-    buffer::FileDataReadBuffer stream = archive.getEntryStream(archiveFileName);
+    Dpac::ReadOnlyArchive archive = Dpac::ReadOnlyArchive::Open(dpacFilePath);
+    buffer::FileDataReadStream stream = archive.getEntryStream(archiveFileName);
     uint64_t size = stream.getSize();
     for (uint64_t i = 0; i < size; i++) {
         char character = stream.readInt8();

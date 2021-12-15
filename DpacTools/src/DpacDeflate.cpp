@@ -15,7 +15,7 @@ static int run(int argc, char **argv) {
     std::string directoryPath = argv[1];
     std::string outFilePath = argv[2];
 
-    dpac::WriteOnlyArchive archive = dpac::WriteOnlyArchive::Open(outFilePath);
+    Dpac::WriteOnlyArchive archive = Dpac::WriteOnlyArchive::Open(outFilePath);
 
     std::string rootDirectory = std::filesystem::absolute(directoryPath).u8string();
     std::replace(rootDirectory.begin(), rootDirectory.end(), '\\', DPAC_FILE_SEPARATOR);
@@ -34,25 +34,19 @@ static int run(int argc, char **argv) {
         }
     }
 
-    for (auto &filePath: files) {
-        auto relativePath = filePath.substr(rootDirectory.length());
-        if (relativePath.empty()) {
-            continue;
-        }
-        uint64_t fileSize = FileUtils::GetFileSize(filePath);
-        archive.createEntry(relativePath, fileSize);
-    }
+    archive.reserveNEntries(files.size());
     archive.finalizeEntryTable();
-    for (auto &filePath: files) {
+
+    for (size_t entryIndex = 0; entryIndex < files.size(); ++entryIndex) {
+        std::string filePath = files[entryIndex];
         auto relativePath = filePath.substr(rootDirectory.length());
         if (relativePath.empty()) {
             continue;
         }
-        std::ifstream streamIn;
-        streamIn.open(filePath, std::ios::in | std::ios::binary);
-        archive.createEntryContentDefinition(relativePath, streamIn);
-        streamIn.close();
+        Stream::FileDataReadStream fileStream = Stream::FileDataReadStream::Open(filePath);
+        archive.defineEntryFromUncompressedStream(entryIndex, relativePath, fileStream);
     }
+
     return 0;
 }
 

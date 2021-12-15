@@ -9,7 +9,7 @@ int run(int argc, char **argv) {
         return 1;
     }
     std::string dpacFilePath = argv[1];
-    dpac::ReadOnlyArchive archive = dpac::ReadOnlyArchive::Open(dpacFilePath);
+    Dpac::ReadOnlyArchive archive = Dpac::ReadOnlyArchive::Open(dpacFilePath);
     auto fileTable = archive.getFileContentOffsetTable();
     for (auto &entry: fileTable) {
         std::cout << entry.first << " at " << entry.second << std::endl;
