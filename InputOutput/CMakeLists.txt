@@ -15,6 +15,7 @@ target_link_libraries(Dyngine_InputOutput PUBLIC Dyngine_Utils)
 
 # Depends on zstd module
 target_link_libraries(Dyngine_InputOutput PRIVATE libzstd_static)
+target_include_directories(Dyngine_InputOutput PRIVATE "${CMAKE_SOURCE_DIR}/libraries/zstd/lib")
 
 # Tests
 file(GLOB_RECURSE TEST_SOURCE_FILES "${CMAKE_CURRENT_LIST_DIR}/tests/*.cpp")
