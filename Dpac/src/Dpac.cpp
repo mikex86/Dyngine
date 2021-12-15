@@ -89,7 +89,11 @@ void WriteOnlyArchive::defineEntryFromUncompressedStream(uint64_t entryIndex, co
                         std::to_string(numEntries)
         );
     }
-    entryContentOffsetTable[entryName] = currentHeapOffset;
+    std::string theEntryName = entryName;
+    if (theEntryName.find_first_of('/') != 0) {
+        theEntryName = "/" + theEntryName;
+    }
+    entryContentOffsetTable[theEntryName] = currentHeapOffset;
 
     dataStream.seek(heapStart + currentHeapOffset);
     auto zstdDataStream = Stream::ZstdDeflateStream(

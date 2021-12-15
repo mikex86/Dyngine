@@ -53,6 +53,7 @@ void Stream::ZstdDeflateStream::writeUint8(uint8_t uint8) {
 std::pair<size_t, size_t> Stream::ZstdDeflateStream::writeStreamContents(Stream::DataReadStream &stream) {
     static_assert(sizeof(std::streamsize) >= sizeof(size_t), "std::streamsize is smaller than size_t");
     size_t bytesReadTotal = 0;
+    size_t bytesWrittenTotal = 0;
     while (stream.hasRemaining()) {
         size_t readBytesInChunk = stream.read(inputBuffer, static_cast<std::streamsize>(inputBufferCapacity));
         bool lastChunk = readBytesInChunk < inputBufferCapacity;
@@ -70,11 +71,12 @@ std::pair<size_t, size_t> Stream::ZstdDeflateStream::writeStreamContents(Stream:
             sink->writeBuffer(outputBuffer, outputBufferLength);
             outputBufferReadIndex = outputBufferLength;
             position += outputBufferLength;
+            bytesWrittenTotal += outputBufferLength;
             finished = lastChunk ? (remaining == 0) : (input.pos == input.size);
         } while (!finished);
         bytesReadTotal += readBytesInChunk;
     }
-    return {outputBufferReadIndex, bytesReadTotal};
+    return {bytesWrittenTotal, bytesReadTotal};
 }
 
 void Stream::ZstdDeflateStream::seek(uint64_t position) {

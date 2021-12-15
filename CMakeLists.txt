@@ -1,8 +1,3 @@
-# ATTENTION: VULKAN SDK REQUIRED
-# Download here: https://vulkan.lunarg.com/
-
-# DirectX Shader Compiler (dxc) required to be in PATH
-
 cmake_minimum_required(VERSION 3.20)
 project(Dyngine)
 
@@ -63,6 +58,11 @@ set(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
 add_subdirectory("${CMAKE_SOURCE_DIR}/libraries/glm")
 target_link_libraries(Dyngine PUBLIC glm)
 
+# glTF loader
+set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
+set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
+add_subdirectory("${CMAKE_SOURCE_DIR}/libraries/tinygltf")
+
 # Low Level Graphics Library
 set(LLGL_GRAPHICS_API OpenGL)
 
@@ -106,20 +106,32 @@ target_link_libraries(Dyngine PUBLIC LLGL LLGL_${LLGL_GRAPHICS_API})
 
 # Build Engine Resources
 
-set(RESOURCES_DIRECTORY "${CMAKE_BINARY_DIR}/resources")
+set(RESOURCE_DIRECTORY "${CMAKE_SOURCE_DIR}/resources")
+set(RESOURCES_BINARY_DIRECTORY "${CMAKE_BINARY_DIR}/resources")
 
 # Compile Spir-V shaders
 set(SHADER_SOURCE_DIR "${CMAKE_SOURCE_DIR}/shaders")
-set(SHADER_BINARY_DIR "${RESOURCES_DIRECTORY}/shaders")
+set(SHADER_BINARY_DIR "${RESOURCES_BINARY_DIRECTORY}/shaders")
 
 file(GLOB_RECURSE GLSL_VERTEX_SHADER_SOURCE_FILES CONFIGURE_DEPENDS "${SHADER_SOURCE_DIR}/*.vert.glsl")
 file(GLOB_RECURSE GLSL_FRAGMENT_SHADER_SOURCE_FILES CONFIGURE_DEPENDS "${SHADER_SOURCE_DIR}/*.frag.glsl")
 
+# Create RESOURCES_BINARY_DIRECTORY
+add_custom_command(
+        COMMAND
+        "${CMAKE_COMMAND}" -E make_directory "${RESOURCES_BINARY_DIRECTORY}"
+        OUTPUT "${RESOURCES_BINARY_DIRECTORY}"
+        COMMENT "Creating ${RESOURCES_BINARY_DIRECTORY}"
+)
+
+# Find GLSLC shader compiler
 find_package(Vulkan REQUIRED COMPONENTS glslc) # Vulkan SDK required
 find_program(glslc_executable NAMES glslc HINTS Vulkan::glslc)
 if (NOT glslc_executable)
     message("Spir-V Shader compiler (glslc) was not found. Please install the Vulkan Development SDK")
 endif ()
+
+# Create SHADER_BINARY_DIR
 add_custom_command(
         COMMAND
         "${CMAKE_COMMAND}" -E make_directory "${SHADER_BINARY_DIR}"
@@ -128,32 +140,32 @@ add_custom_command(
 )
 
 # Compile GLSL vertex shaders to SPIR-V
-foreach (vert_shader_file IN LISTS GLSL_VERTEX_SHADER_SOURCE_FILES)
-    get_filename_component(FILENAME ${vert_shader_file} NAME)
+foreach (VERT_SHADER_FILE IN LISTS GLSL_VERTEX_SHADER_SOURCE_FILES)
+    get_filename_component(FILENAME ${VERT_SHADER_FILE} NAME)
     add_custom_command(
             COMMAND
             "${glslc_executable}"
             -fshader-stage=vertex
             -o "${SHADER_BINARY_DIR}/${FILENAME}.spv"
-            ${vert_shader_file}
+            ${VERT_SHADER_FILE}
             OUTPUT "${SHADER_BINARY_DIR}/${FILENAME}.spv"
-            DEPENDS "${vert_shader_file}" "${SHADER_BINARY_DIR}"
+            DEPENDS "${VERT_SHADER_FILE}" "${SHADER_BINARY_DIR}"
             COMMENT "Compiling Spir-V Shader \"${FILENAME}\""
     )
     list(APPEND SPV_SHADERS "${SHADER_BINARY_DIR}/${FILENAME}.spv")
 endforeach ()
 
 # Compile GLSL fragment shaders to SPIR-V
-foreach (frag_shader_file IN LISTS GLSL_FRAGMENT_SHADER_SOURCE_FILES)
-    get_filename_component(FILENAME ${frag_shader_file} NAME)
+foreach (FRAG_SHADER_FILE IN LISTS GLSL_FRAGMENT_SHADER_SOURCE_FILES)
+    get_filename_component(FILENAME ${FRAG_SHADER_FILE} NAME)
     add_custom_command(
             COMMAND
             "${glslc_executable}"
             -fshader-stage=fragment
             -o "${SHADER_BINARY_DIR}/${FILENAME}.spv"
-            ${frag_shader_file}
+            ${FRAG_SHADER_FILE}
             OUTPUT "${SHADER_BINARY_DIR}/${FILENAME}.spv"
-            DEPENDS "${frag_shader_file}" "${SHADER_BINARY_DIR}"
+            DEPENDS "${FRAG_SHADER_FILE}" "${SHADER_BINARY_DIR}"
             COMMENT "Compiling Spir-V Shader \"${FILENAME}\""
     )
     list(APPEND SPV_SHADERS "${SHADER_BINARY_DIR}/${FILENAME}.spv")
@@ -164,29 +176,44 @@ file(GLOB_RECURSE HLSL_VERTEX_SHADER_SOURCE_FILES CONFIGURE_DEPENDS "${SHADER_SO
 file(GLOB_RECURSE HLSL_FRAGEMENT_SHADER_SOURCE_FILES CONFIGURE_DEPENDS "${SHADER_SOURCE_DIR}/*.frag.hlsl")
 
 # Compile HLSL vertex shaders to Compiled Shader Objects
-foreach (vert_shader_file IN LISTS HLSL_VERTEX_SHADER_SOURCE_FILES)
-    get_filename_component(FILENAME ${vert_shader_file} NAME)
+foreach (VERT_SHADER_FILE IN LISTS HLSL_VERTEX_SHADER_SOURCE_FILES)
+    get_filename_component(FILENAME ${VERT_SHADER_FILE} NAME)
     add_custom_command(
             COMMAND
-            dxc "${vert_shader_file}" -E VS -T vs_4_0 -Fo "${SHADER_BINARY_DIR}/${FILENAME}.cso"
+            dxc "${VERT_SHADER_FILE}" -E VS -T vs_4_0 -Fo "${SHADER_BINARY_DIR}/${FILENAME}.cso"
             OUTPUT "${SHADER_BINARY_DIR}/${FILENAME}.cso"
-            DEPENDS "${hlsl_file}" "${SHADER_BINARY_DIR}"
+            DEPENDS "${VERT_SHADER_FILE}" "${SHADER_BINARY_DIR}"
             COMMENT "Compiling HLSL Shader \"${FILENAME}\""
     )
     list(APPEND HLSL_SHADERS "${SHADER_BINARY_DIR}/${FILENAME}.cso")
 endforeach ()
 
 # Compile HLSL fragment shaders to Compiled Shader Objects
-foreach (frag_shader_file IN LISTS HLSL_FRAGEMENT_SHADER_SOURCE_FILES)
-    get_filename_component(FILENAME ${frag_shader_file} NAME)
+foreach (FRAG_SHADER_FILE IN LISTS HLSL_FRAGEMENT_SHADER_SOURCE_FILES)
+    get_filename_component(FILENAME ${FRAG_SHADER_FILE} NAME)
     add_custom_command(
             COMMAND
-            dxc "${frag_shader_file}" -E PS -T ps_4_0 -Fo "${SHADER_BINARY_DIR}/${FILENAME}.cso"
+            dxc "${FRAG_SHADER_FILE}" -E PS -T ps_4_0 -Fo "${SHADER_BINARY_DIR}/${FILENAME}.cso"
             OUTPUT "${SHADER_BINARY_DIR}/${FILENAME}.cso"
-            DEPENDS "${hlsl_file}" "${SHADER_BINARY_DIR}"
+            DEPENDS "${FRAG_SHADER_FILE}" "${SHADER_BINARY_DIR}"
             COMMENT "Compiling HLSL Shader \"${FILENAME}\""
     )
     list(APPEND HLSL_SHADERS "${SHADER_BINARY_DIR}/${FILENAME}.cso")
+endforeach ()
+
+# Copy resources from RESOURCE_DIRECTORY into RESOURCES_BINARY_DIRECTORY
+file(GLOB_RECURSE RESOURCE_FILES CONFIGURE_DEPENDS "${RESOURCE_DIRECTORY}/*")
+foreach (RESOURCE_FILE IN LISTS RESOURCE_FILES)
+    file(RELATIVE_PATH RESOURCE_FILE_RELATIVE ${RESOURCE_DIRECTORY} ${RESOURCE_FILE})
+    get_filename_component(FILENAME ${RESOURCE_FILE} NAME)
+    add_custom_command(
+            COMMAND
+            "${CMAKE_COMMAND}" -E copy_if_different "${RESOURCE_FILE}" "${RESOURCES_BINARY_DIRECTORY}/${RESOURCE_FILE_RELATIVE}"
+            OUTPUT "${RESOURCES_BINARY_DIRECTORY}/${RESOURCE_FILE_RELATIVE}"
+            DEPENDS "${RESOURCE_FILE}" "${RESOURCES_BINARY_DIRECTORY}"
+            COMMENT "Copying Resource \"${RESOURCE_FILE_RELATIVE}\""
+    )
+    list(APPEND COPIED_RESOURCES "${RESOURCES_BINARY_DIRECTORY}/${RESOURCE_FILE_RELATIVE}")
 endforeach ()
 
 # Package Engine Resources
@@ -209,9 +236,9 @@ add_custom_command(
 add_custom_command(
         COMMAND
         "${CMAKE_BINARY_DIR}/DpacTools/DpacDeflate"
-        "${RESOURCES_DIRECTORY}"
+        "${RESOURCES_BINARY_DIRECTORY}"
         "${ENGINE_RESOURCE_PACKAGE}"
-        DEPENDS "${SHADER_BINARY_DIR}" "${ENGINE_WORKING_DIRECTORY}" "${CMAKE_BINARY_DIR}/DpacTools/DpacDeflate" ${SPV_SHADERS} ${HLSL_SHADERS}
+        DEPENDS "${SHADER_BINARY_DIR}" "${ENGINE_WORKING_DIRECTORY}" "${CMAKE_BINARY_DIR}/DpacTools/DpacDeflate" ${COPIED_RESOURCES} ${SPV_SHADERS} ${HLSL_SHADERS}
         COMMENT "Packaging engine resources"
         OUTPUT "${ENGINE_RESOURCE_PACKAGE}"
 )

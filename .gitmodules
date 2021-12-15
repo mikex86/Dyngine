@@ -7,3 +7,6 @@
 [submodule "libraries/zstd"]
 	path = libraries/zstd
 	url = https://github.com/facebook/zstd
+[submodule "libraries/tinygltf"]
+	path = libraries/tinygltf
+	url = https://github.com/syoyo/tinygltf

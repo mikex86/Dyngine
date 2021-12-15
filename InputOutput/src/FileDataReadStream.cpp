@@ -54,7 +54,7 @@ uint8_t FileDataReadStream::readUint8() {
 void FileDataReadStream::seek(uint64_t newPosition) {
     // This must be met, or we can only open 4 GB files, which would be terrible
     static_assert(sizeof(uint64_t) <= sizeof(std::ifstream::pos_type));
-    if ((newPosition - startPosition) >= size) {
+    if ((newPosition - startPosition) > size) {
         RAISE_EXCEPTION(StreamSeekException, "Tried to seek to position " + std::to_string(newPosition) +
                                              " in a stream of size " + std::to_string(size));
     }
