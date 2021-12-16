@@ -105,4 +105,40 @@ namespace ShaderUtil {
         }
         return shaderProgram;
     }
+
+    LLGL::Shader *LoadGLSLShader(Dpac::ReadOnlyArchive &archive, const std::string &entryName,
+                                 const std::shared_ptr<LLGL::RenderSystem> &renderSystem, LLGL::ShaderType shaderType,
+                                 const LLGL::VertexFormat &vertexFormat) {
+        if (!IsSupported(renderSystem, LLGL::ShadingLanguage::GLSL)) {
+            RAISE_EXCEPTION(errorhandling::IllegalStateException, "GLSL shading language not available");
+        }
+
+        uint8_t *shaderContent;
+        uint64_t shaderContentSize;
+        {
+            auto shaderContentStream = archive.getEntryStream(entryName);
+            shaderContentSize = archive.getUncompressedEntrySize(entryName);
+            shaderContent = new uint8_t[shaderContentSize + 1];
+            shaderContentStream->read(shaderContent, shaderContentSize);
+            shaderContent[shaderContentSize] = '\0';
+        }
+        LLGL::ShaderDescriptor shaderDesc = {
+                shaderType,
+                reinterpret_cast<char *>(shaderContent),
+                "main",
+                nullptr
+        };
+        shaderDesc.sourceType = LLGL::ShaderSourceType::CodeString;
+        shaderDesc.sourceSize = shaderContentSize;
+        shaderDesc.vertex.inputAttribs = vertexFormat.attributes;
+
+        LLGL::Shader *shader = renderSystem->CreateShader(shaderDesc);
+        if (shader == nullptr || shader->HasErrors()) {
+            std::string shaderLog = shader->GetReport();
+            delete[] shaderContent;
+            RAISE_EXCEPTION(ShaderLoadingException,
+                            "Could not create shader from shader description. Shader Log: " + shaderLog);
+        }
+        return shader;
+    }
 }

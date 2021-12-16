@@ -43,7 +43,7 @@ void FlyingPerspectiveCameraController::update(float deltaTime) {
 
     if (window->HasFocus()) {
         auto mouseMotion = input->GetMouseMotion();
-        if (input->KeyPressed(LLGL::Key::MButton)) {
+        if (input->KeyDown(LLGL::Key::Q)) {
             camera.setRoll(camera.getRoll() + static_cast<float>(mouseMotion.x) * 0.1f);
         } else {
             display->ShowCursor(false);

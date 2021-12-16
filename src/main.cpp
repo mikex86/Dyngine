@@ -62,7 +62,7 @@ void RunEngine() {
     LLGL::VertexFormat vertexFormat{};
     {
         // Vertex data (3 vertices for our triangle)
-        const float s = 0.5f;
+        const float s = 1.0f;
 
         // Vertex data structure
         struct Vertex {
@@ -105,18 +105,27 @@ void RunEngine() {
     {
         LLGL::Shader *vertexShader, *fragmentShader;
         if (ShaderUtil::IsSupported(renderSystem, LLGL::ShadingLanguage::SPIRV)) {
-            vertexShader = ShaderUtil::LoadSpirVShader(engineResources, "/shaders/triangle.vert.glsl.spv",
+            vertexShader = ShaderUtil::LoadSpirVShader(engineResources, "/shaders/triangle/triangle.vert.glsl.spv",
                                                        renderSystem,
                                                        LLGL::ShaderType::Vertex,
                                                        vertexFormat
             );
 
             fragmentShader = ShaderUtil::LoadSpirVShader(engineResources,
-                                                         "/shaders/triangle.frag.glsl.spv",
+                                                         "/shaders/triangle/triangle.frag.glsl.spv",
                                                          renderSystem,
                                                          LLGL::ShaderType::Fragment,
                                                          vertexFormat
             );
+        } else if (ShaderUtil::IsSupported(renderSystem, LLGL::ShadingLanguage::GLSL)) {
+            vertexShader = ShaderUtil::LoadGLSLShader(engineResources, "/shaders/triangle/triangle.vert.glsl",
+                                                      renderSystem,
+                                                      LLGL::ShaderType::Vertex,
+                                                      vertexFormat);
+            fragmentShader = ShaderUtil::LoadGLSLShader(engineResources, "/shaders/triangle/triangle.frag.glsl",
+                                                      renderSystem,
+                                                      LLGL::ShaderType::Fragment,
+                                                      vertexFormat);
         } else {
             vertexShader = ShaderUtil::LoadHLSLShader(engineResources,
                                                       "/shaders/triangle.vert.hlsl.cso",

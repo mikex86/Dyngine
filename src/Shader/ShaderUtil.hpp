@@ -21,6 +21,12 @@ namespace ShaderUtil {
                     const LLGL::VertexFormat &vertexFormat);
 
     LLGL::Shader *
+    LoadGLSLShader(Dpac::ReadOnlyArchive &archive, const std::string &entryName,
+                   const std::shared_ptr<LLGL::RenderSystem> &renderSystem,
+                   LLGL::ShaderType shaderType,
+                   const LLGL::VertexFormat &vertexFormat);
+
+    LLGL::Shader *
     LoadHLSLShader(Dpac::ReadOnlyArchive &archive, const std::string &entryName,
                    const std::shared_ptr<LLGL::RenderSystem> &renderSystem,
                    LLGL::ShaderType shaderType,
