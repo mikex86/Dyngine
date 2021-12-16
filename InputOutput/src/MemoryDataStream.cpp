@@ -21,7 +21,7 @@ uint8_t MemoryReadStream::readUint8() {
     return uint8;
 }
 
-void MemoryReadStream::seek(size_t newPosition) {
+void MemoryReadStream::seek(uint64_t newPosition) {
     if (newPosition >= size) {
         RAISE_EXCEPTION(StreamUnderflowException,
                         "Failed to seek to position " + std::to_string(newPosition) + ", which exceeds buffer size " +
@@ -31,7 +31,7 @@ void MemoryReadStream::seek(size_t newPosition) {
     position = newPosition;
 }
 
-void MemoryReadStream::skip(size_t offset) {
+void MemoryReadStream::skip(uint64_t offset) {
     size_t newPosition = position + offset;
     if (newPosition >= size) {
         RAISE_EXCEPTION(StreamUnderflowException,

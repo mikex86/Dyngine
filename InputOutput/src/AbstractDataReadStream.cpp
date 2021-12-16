@@ -106,11 +106,11 @@ std::string AbstractDataReadStream::readFixedString(size_t length) {
 AbstractDataReadStream::AbstractDataReadStream(uint64_t size, uint64_t position) : size(size), position(position), startPosition(position) {
 }
 
-size_t AbstractDataReadStream::getSize() const {
+uint64_t AbstractDataReadStream::getSize() const {
     return size;
 }
 
-size_t AbstractDataReadStream::getPosition() const {
+uint64_t AbstractDataReadStream::getPosition() const {
     return position;
 }
 

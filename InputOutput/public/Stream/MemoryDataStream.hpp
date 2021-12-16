@@ -18,9 +18,9 @@ namespace Stream {
 
         uint8_t readUint8() override;
 
-        void seek(size_t newPosition) override;
+        void seek(uint64_t newPosition) override;
 
-        void skip(size_t offset) override;
+        void skip(uint64_t offset) override;
 
     };
 

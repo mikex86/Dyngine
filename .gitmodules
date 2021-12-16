@@ -10,3 +10,6 @@
 [submodule "libraries/tinygltf"]
 	path = libraries/tinygltf
 	url = https://github.com/syoyo/tinygltf
+[submodule "libraries/googletest"]
+	path = libraries/googletest
+	url = https://github.com/google/googletest
