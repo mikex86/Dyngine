@@ -10,6 +10,10 @@ elseif (MSVC)
     add_compile_options("/EHsc")
 endif (CMAKE_COMPILER_IS_GNUCC)
 
+# Reset the executable and library output path (changed by LLGL submodule)
+set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
+set(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
+
 # Initialize submodules and link libraries
 
 # Google Test
@@ -89,9 +93,6 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     endif ()
 endif ()
 
-# Reset the executable and library output path (changed by LLGL submodule)
-set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
-set(LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}")
 
 add_compile_definitions(LLGL_ENABLE_UTILITY) # Enable the Utility functions
 

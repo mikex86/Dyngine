@@ -1,5 +1,7 @@
 #include "ShaderUtil.hpp"
+#include "Stream/MemoryDataStream.hpp"
 #include <ErrorHandling/IllegalStateException.hpp>
+#include <DShader/DShader.hpp>
 
 namespace ShaderUtil {
 
@@ -13,7 +15,7 @@ namespace ShaderUtil {
     }
 
     LLGL::Shader *
-    LoadSpirVShader(Dpac::ReadOnlyArchive &archive, const std::string &entryName,
+    LoadSpirVShader(const std::shared_ptr<Stream::DataReadStream> &stream,
                     const std::shared_ptr<LLGL::RenderSystem> &renderSystem,
                     LLGL::ShaderType shaderType,
                     const LLGL::VertexFormat &vertexFormat
@@ -25,10 +27,9 @@ namespace ShaderUtil {
         uint8_t *shaderContent;
         uint64_t shaderContentSize;
         {
-            auto shaderContentStream = archive.getEntryStream(entryName);
-            shaderContentSize = archive.getUncompressedEntrySize(entryName);
+            shaderContentSize = stream->getLength();
             shaderContent = new uint8_t[shaderContentSize];
-            shaderContentStream->read(shaderContent, shaderContentSize);
+            stream->read(shaderContent, shaderContentSize);
         }
         LLGL::ShaderDescriptor shaderDesc = {
                 shaderType,
@@ -50,7 +51,7 @@ namespace ShaderUtil {
         return shader;
     }
 
-    LLGL::Shader *LoadHLSLShader(Dpac::ReadOnlyArchive &archive, const std::string &entryName,
+    LLGL::Shader *LoadHLSLShader(const std::shared_ptr<Stream::DataReadStream> &shaderContentStream,
                                  const std::shared_ptr<LLGL::RenderSystem> &renderSystem, LLGL::ShaderType shaderType,
                                  const LLGL::VertexFormat &vertexFormat,
                                  const std::string &entryPoint,
@@ -63,8 +64,7 @@ namespace ShaderUtil {
         uint8_t *shaderContent;
         uint64_t shaderContentSize;
         {
-            auto shaderContentStream = archive.getEntryStream(entryName);
-            shaderContentSize = archive.getUncompressedEntrySize(entryName);
+            shaderContentSize = shaderContentStream->getLength();
             shaderContent = new uint8_t[shaderContentSize];
             shaderContentStream->read(shaderContent, shaderContentSize);
         }
@@ -105,7 +105,7 @@ namespace ShaderUtil {
         return shaderProgram;
     }
 
-    LLGL::Shader *LoadGLSLShader(Dpac::ReadOnlyArchive &archive, const std::string &entryName,
+    LLGL::Shader *LoadGLSLShader(const std::shared_ptr<Stream::DataReadStream> &shaderContentStream,
                                  const std::shared_ptr<LLGL::RenderSystem> &renderSystem, LLGL::ShaderType shaderType,
                                  const LLGL::VertexFormat &vertexFormat) {
         if (!IsSupported(renderSystem, LLGL::ShadingLanguage::GLSL)) {
@@ -115,8 +115,7 @@ namespace ShaderUtil {
         uint8_t *shaderContent;
         uint64_t shaderContentSize;
         {
-            auto shaderContentStream = archive.getEntryStream(entryName);
-            shaderContentSize = archive.getUncompressedEntrySize(entryName);
+            shaderContentSize = shaderContentStream->getLength();
             shaderContent = new uint8_t[shaderContentSize + 1];
             shaderContentStream->read(shaderContent, shaderContentSize);
             shaderContent[shaderContentSize] = '\0';
@@ -139,5 +138,97 @@ namespace ShaderUtil {
                             "Could not create shader from shader description. Shader Log: " + shaderLog);
         }
         return shader;
+    }
+
+    LLGL::ShaderProgram *LoadDShaderPackage(const std::shared_ptr<Stream::DataReadStream> &dShaderPackageStream,
+                                     const std::shared_ptr<LLGL::RenderSystem> &renderSystem,
+                                     const LLGL::VertexFormat &vertexFormat) {
+        auto dShaderPackage = DShader::LoadDShader(dShaderPackageStream);
+        std::vector<uint8_t> vertexShaderContent{}, fragmentShaderContent{};
+        if (IsSupported(renderSystem, LLGL::ShadingLanguage::SPIRV)) {
+            // vertex shader
+            {
+                auto vertSpirVOpt = dShaderPackage.find(DShader::ShaderType::VERTEX_SHADER,
+                                                        DShader::ShaderApi::SPIRV_BINARY);
+                if (vertSpirVOpt) {
+                    vertexShaderContent = vertSpirVOpt.value().data;
+                }
+            }
+            // fragment shader
+            {
+                auto fragSpirVOpt = dShaderPackage.find(DShader::ShaderType::FRAGMENT_SHADER,
+                                                        DShader::ShaderApi::SPIRV_BINARY);
+                if (fragSpirVOpt) {
+                    fragmentShaderContent = fragSpirVOpt.value().data;
+                }
+            }
+        } else if (IsSupported(renderSystem, LLGL::ShadingLanguage::HLSL)) {
+            // vertex shader
+            {
+                auto vertHlslOpt = dShaderPackage.find(DShader::ShaderType::VERTEX_SHADER,
+                                                       DShader::ShaderApi::CSO_BINARY);
+                if (vertHlslOpt) {
+                    vertexShaderContent = vertHlslOpt.value().data;
+                } else {
+                    vertHlslOpt = dShaderPackage.find(DShader::ShaderType::VERTEX_SHADER,
+                                                      DShader::ShaderApi::HLSL_SOURCE);
+                    if (vertHlslOpt) {
+                        vertexShaderContent = vertHlslOpt.value().data;
+                    }
+                }
+            }
+            // fragment shader
+            {
+                // Compiled Shader Object (CSO) (precompiled HLSL)
+                auto fragHlslOpt = dShaderPackage.find(DShader::ShaderType::FRAGMENT_SHADER,
+                                                       DShader::ShaderApi::CSO_BINARY);
+                if (fragHlslOpt) {
+                    fragmentShaderContent = fragHlslOpt->data;
+                } else {
+                    // HLSL source (text base)
+                    fragHlslOpt = dShaderPackage.find(DShader::ShaderType::FRAGMENT_SHADER,
+                                                      DShader::ShaderApi::HLSL_SOURCE);
+                    if (fragHlslOpt) {
+                        fragmentShaderContent = fragHlslOpt->data;
+                    }
+                }
+            }
+        } else if (IsSupported(renderSystem, LLGL::ShadingLanguage::GLSL)) {
+            // vertex shader
+            {
+                auto vertGLSLOpt = dShaderPackage.find(DShader::ShaderType::VERTEX_SHADER,
+                                                       DShader::ShaderApi::GLSL_SOURCE);
+                if (vertGLSLOpt) {
+                    vertexShaderContent = vertGLSLOpt.value().data;
+                }
+            }
+            // fragment shader
+            {
+                auto fragGLSLOpt = dShaderPackage.find(DShader::ShaderType::FRAGMENT_SHADER,
+                                                       DShader::ShaderApi::GLSL_SOURCE);
+                if (fragGLSLOpt) {
+                    fragmentShaderContent = fragGLSLOpt.value().data;
+                }
+            }
+        }
+        if (vertexShaderContent.empty()) {
+            throw std::runtime_error("Vertex shader not found in DShader package");
+        }
+        if (fragmentShaderContent.empty()) {
+            throw std::runtime_error("Fragment shader not found in DShader package");
+        }
+        auto vertexShader = LoadSpirVShader(
+                std::shared_ptr<Stream::DataReadStream>(
+                        Stream::MemoryReadStream::CopyOf(vertexShaderContent.data(), vertexShaderContent.size())
+                ),
+                renderSystem, LLGL::ShaderType::Vertex, vertexFormat
+        );
+        auto fragmentShader = LoadSpirVShader(
+                std::shared_ptr<Stream::DataReadStream>(
+                        Stream::MemoryReadStream::CopyOf(fragmentShaderContent.data(), fragmentShaderContent.size())
+                ),
+                renderSystem, LLGL::ShaderType::Fragment, vertexFormat
+        );
+        return CreateShaderProgram(renderSystem, vertexShader, fragmentShader);
     }
 }

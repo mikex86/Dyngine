@@ -103,53 +103,10 @@ void RunEngine() {
     // Setup ShaderProgram
     LLGL::ShaderProgram *shaderProgram;
     {
-        LLGL::Shader *vertexShader, *fragmentShader;
-        if (ShaderUtil::IsSupported(renderSystem, LLGL::ShadingLanguage::SPIRV)) {
-            vertexShader = ShaderUtil::LoadSpirVShader(engineResources, "/shaders/triangle/triangle.vert.glsl.spv",
-                                                       renderSystem,
-                                                       LLGL::ShaderType::Vertex,
-                                                       vertexFormat
-            );
-
-            fragmentShader = ShaderUtil::LoadSpirVShader(engineResources,
-                                                         "/shaders/triangle/triangle.frag.glsl.spv",
-                                                         renderSystem,
-                                                         LLGL::ShaderType::Fragment,
-                                                         vertexFormat
-            );
-        } else if (ShaderUtil::IsSupported(renderSystem, LLGL::ShadingLanguage::GLSL)) {
-            vertexShader = ShaderUtil::LoadGLSLShader(engineResources, "/shaders/triangle/triangle.vert.glsl",
-                                                      renderSystem,
-                                                      LLGL::ShaderType::Vertex,
-                                                      vertexFormat);
-            fragmentShader = ShaderUtil::LoadGLSLShader(engineResources, "/shaders/triangle/triangle.frag.glsl",
-                                                      renderSystem,
-                                                      LLGL::ShaderType::Fragment,
-                                                      vertexFormat);
-        } else {
-            vertexShader = ShaderUtil::LoadHLSLShader(engineResources,
-                                                      "/shaders/triangle.vert.hlsl.cso",
-                                                      renderSystem,
-                                                      LLGL::ShaderType::Vertex,
-                                                      vertexFormat,
-                                                      "VS",
-                                                      "vs_4_0"
-            );
-
-            fragmentShader = ShaderUtil::LoadHLSLShader(engineResources,
-                                                        "/shaders/triangle.frag.hlsl.cso",
-                                                        renderSystem,
-                                                        LLGL::ShaderType::Fragment,
-                                                        vertexFormat,
-                                                        "PS",
-                                                        "ps_4_0"
-            );
-        }
-
-        shaderProgram = ShaderUtil::CreateShaderProgram(
+        shaderProgram = ShaderUtil::LoadDShaderPackage(
+                engineResources.getEntryStream("/shaders/triangle.dsp"),
                 renderSystem,
-                vertexShader,
-                fragmentShader
+                vertexFormat
         );
     }
 
@@ -275,9 +232,9 @@ void RunEngine() {
 }
 
 int main() {
-    try {
+//    try {
         RunEngine();
-    } catch (std::exception &e) {
-        std::cerr << "RunEngine() failed exceptionally: " << e.what() << std::endl;
-    }
+//    } catch (std::exception &e) {
+//        std::cerr << "RunEngine() failed exceptionally: " << e.what() << std::endl;
+//    }
 }

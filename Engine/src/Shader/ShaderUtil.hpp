@@ -14,20 +14,27 @@ namespace ShaderUtil {
             LLGL::ShadingLanguage lang
     );
 
+    LLGL::ShaderProgram *
+    LoadDShaderPackage(
+            const std::shared_ptr<Stream::DataReadStream> &dShaderPackageStream,
+            const std::shared_ptr<LLGL::RenderSystem> &renderSystem,
+            const LLGL::VertexFormat &vertexFormat
+    );
+
     LLGL::Shader *
-    LoadSpirVShader(Dpac::ReadOnlyArchive &archive, const std::string &entryName,
+    LoadSpirVShader(const std::shared_ptr<Stream::DataReadStream> &shaderContentStream,
                     const std::shared_ptr<LLGL::RenderSystem> &renderSystem,
                     LLGL::ShaderType shaderType,
                     const LLGL::VertexFormat &vertexFormat);
 
     LLGL::Shader *
-    LoadGLSLShader(Dpac::ReadOnlyArchive &archive, const std::string &entryName,
+    LoadGLSLShader(const std::shared_ptr<Stream::DataReadStream> &shaderContentStream,
                    const std::shared_ptr<LLGL::RenderSystem> &renderSystem,
                    LLGL::ShaderType shaderType,
                    const LLGL::VertexFormat &vertexFormat);
 
     LLGL::Shader *
-    LoadHLSLShader(Dpac::ReadOnlyArchive &archive, const std::string &entryName,
+    LoadHLSLShader(const std::shared_ptr<Stream::DataReadStream> &shaderContentStream,
                    const std::shared_ptr<LLGL::RenderSystem> &renderSystem,
                    LLGL::ShaderType shaderType,
                    const LLGL::VertexFormat &vertexFormat,
