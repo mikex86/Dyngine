@@ -6,4 +6,5 @@ file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/src/
 add_library(Dyngine_AssetLoader STATIC ${SOURCE_FILES})
 target_include_directories(Dyngine_AssetLoader PUBLIC "${CMAKE_CURRENT_LIST_DIR}/public")
 
-target_link_libraries(Dyngine_AssetLoader PUBLIC tinygltf)
+target_link_libraries(Dyngine_AssetLoader PUBLIC Dyngine_Dpac)
+target_link_libraries(Dyngine_AssetLoader PRIVATE Dyngine_DAsset)

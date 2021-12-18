@@ -6,7 +6,10 @@
 	url = https://github.com/g-truc/glm
 [submodule "libraries/zstd"]
 	path = libraries/zstd
-	url = https://github.com/facebook/zstd
+	url = https://github.com/mikex86/zstd
 [submodule "libraries/tinygltf"]
 	path = libraries/tinygltf
 	url = https://github.com/syoyo/tinygltf
+[submodule "libraries/googletest"]
+	path = libraries/googletest
+	url = https://github.com/google/googletest

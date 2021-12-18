@@ -6,7 +6,7 @@
 ## Notes
 
 ### Supported Compilers
-- MSVC Clang is supported (clang-cl)
+- MSVC C++ is supported (cl)
 
-### Unsupported Compilers
-- Visual Studio MSVC (cl)
+### Note
+- XInput is currently not working under MSVC Clang (clang-cl)
