@@ -26,7 +26,7 @@ target_link_libraries(Dyngine_Engine PRIVATE Dyngine_ErrorHandling)
 target_link_libraries(Dyngine_Engine PRIVATE Dyngine_Utils)
 target_link_libraries(Dyngine_Engine PRIVATE Dyngine_Dpac)
 target_link_libraries(Dyngine_Engine PRIVATE Dyngine_DShader)
-target_link_libraries(Dyngine_Engine PRIVATE Dyngine_AssetLoader)
+target_link_libraries(Dyngine_Engine PRIVATE Dyngine_DAsset)
 target_link_libraries(Dyngine_Engine PUBLIC glm)
 
 # Build Engine Resources

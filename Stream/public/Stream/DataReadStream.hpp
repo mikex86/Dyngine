@@ -28,6 +28,8 @@ namespace Stream {
 
         virtual int64_t readInt64() = 0;
 
+        virtual float readFloat32() = 0;
+
         virtual std::string readString() = 0;
 
         virtual std::string readFixedString(size_t length) = 0;

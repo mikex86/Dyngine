@@ -54,10 +54,10 @@ namespace Stream {
         return std::make_shared<FileDataWriteStream>(filePath);
     }
 
-    std::pair<size_t, size_t> FileDataWriteStream::writeStreamContents(DataReadStream &inputStream) {
+    std::pair<size_t, size_t> FileDataWriteStream::writeStreamContents(const std::shared_ptr<DataReadStream> &inputStream) {
         size_t nWritten = 0;
-        while (inputStream.hasRemaining()) {
-            writeUint8(inputStream.readUint8());
+        while (inputStream->hasRemaining()) {
+            writeUint8(inputStream->readUint8());
             nWritten++;
         }
         return {nWritten, nWritten};

@@ -67,6 +67,12 @@ void AbstractDataWriteStream::writeInt64(int64_t int64) {
     writeUint8(int64);
 }
 
+void AbstractDataWriteStream::writeFloat32(float f32) {
+    static_assert(sizeof(float) == 4, "float is not 4 bytes");
+    CHECK_POSITION(4);
+    writeUint32(reinterpret_cast<uint32_t &>(f32));
+}
+
 void AbstractDataWriteStream::writeString(const std::string &string) {
     size_t strSize = string.length();
     writeUint64(strSize);

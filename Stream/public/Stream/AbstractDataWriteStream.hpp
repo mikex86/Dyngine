@@ -32,6 +32,8 @@ namespace Stream {
 
         void writeInt64(int64_t int64) override;
 
+        void writeFloat32(float f32) override;
+
         void writeString(const std::string &string) override;
 
         void writeFixedString(const std::string &string, size_t fixedLength) override;

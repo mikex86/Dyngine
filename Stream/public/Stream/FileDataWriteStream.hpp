@@ -45,7 +45,7 @@ namespace Stream {
 
         void close();
 
-        std::pair<size_t, size_t> writeStreamContents(DataReadStream &stream) override;
+        std::pair<size_t, size_t> writeStreamContents(const std::shared_ptr<DataReadStream> &stream) override;
 
         void writeBuffer(const uint8_t *buffer, size_t size) override;
 

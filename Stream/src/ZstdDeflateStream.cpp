@@ -50,12 +50,12 @@ void Stream::ZstdDeflateStream::writeUint8(uint8_t uint8) {
     sink->writeUint8(compressedByte);
 }
 
-std::pair<size_t, size_t> Stream::ZstdDeflateStream::writeStreamContents(Stream::DataReadStream &stream) {
+std::pair<size_t, size_t> Stream::ZstdDeflateStream::writeStreamContents(const std::shared_ptr<Stream::DataReadStream> &stream) {
     static_assert(sizeof(std::streamsize) >= sizeof(size_t), "std::streamsize is smaller than size_t");
     size_t bytesReadTotal = 0;
     size_t bytesWrittenTotal = 0;
-    while (stream.hasRemaining()) {
-        size_t readBytesInChunk = stream.read(inputBuffer, static_cast<std::streamsize>(inputBufferCapacity));
+    while (stream->hasRemaining()) {
+        size_t readBytesInChunk = stream->read(inputBuffer, static_cast<std::streamsize>(inputBufferCapacity));
         bool lastChunk = readBytesInChunk < inputBufferCapacity;
         ZSTD_EndDirective mode = lastChunk ? ZSTD_e_end : ZSTD_e_continue;
         ZSTD_inBuffer input = {inputBuffer, readBytesInChunk, 0};

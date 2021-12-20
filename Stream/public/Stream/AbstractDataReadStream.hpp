@@ -32,6 +32,8 @@ namespace Stream {
 
         int64_t readInt64() override;
 
+        float readFloat32() override;
+
         std::string readString() override;
 
         std::string readFixedString(size_t length) override;

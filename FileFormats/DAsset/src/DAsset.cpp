@@ -1,2 +1,0 @@
-#include <DAsset/DAsset.hpp>
-

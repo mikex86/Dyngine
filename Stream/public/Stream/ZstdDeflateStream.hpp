@@ -27,7 +27,7 @@ namespace Stream {
 
         void writeUint8(uint8_t uint8) override;
 
-        std::pair<size_t, size_t> writeStreamContents(Stream::DataReadStream &stream) override;
+        std::pair<size_t, size_t> writeStreamContents(const std::shared_ptr<Stream::DataReadStream> &stream) override;
 
         virtual ~ZstdDeflateStream();
     };

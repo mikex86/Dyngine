@@ -46,11 +46,11 @@ add_subdirectory("FileFormats/DShader")
 # DShader CLI tools
 add_subdirectory("FileFormats/DShaderTools")
 
-# AssetLoader Module
-add_subdirectory("AssetLoader")
-
 # DAsset Module
 add_subdirectory("FileFormats/DAsset")
+
+# DAsset CLI tools
+add_subdirectory("FileFormats/DAssetTools")
 
 # Reset the executable and library output path (changed by DpacTools submodule)
 set(EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}")

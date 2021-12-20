@@ -15,14 +15,14 @@ EXCEPTION_TYPE_DEFAULT_IMPL(EntryDoesNotExistException);
 
 ReadOnlyArchive::ReadOnlyArchive(const std::string &archiveFilePath) : dataStream(
         Stream::FileDataReadStream::Open(archiveFilePath)) {
-    heapStart = dataStream.readUint64();
+    heapStart = dataStream->readUint64();
 
     // Read entry table
-    while (dataStream.getPosition() < heapStart) {
-        std::string entryName = dataStream.readFixedString(DPAC_MAX_PATH);
-        entryContentOffsetTable[entryName] = dataStream.readUint64();
-        entryContentCompressedSizeTable[entryName] = dataStream.readUint64();
-        entryContentUncompressedSizeTable[entryName] = dataStream.readUint64();
+    while (  dataStream->getPosition() < heapStart) {
+        std::string entryName =   dataStream->readFixedString(DPAC_MAX_PATH);
+        entryContentOffsetTable[entryName] =   dataStream->readUint64();
+        entryContentCompressedSizeTable[entryName] =   dataStream->readUint64();
+        entryContentUncompressedSizeTable[entryName] =   dataStream->readUint64();
     }
 }
 
@@ -43,7 +43,7 @@ std::unique_ptr<Stream::DataReadStream> ReadOnlyArchive::getEntryStream(const st
     uint64_t absoluteOffset = heapStart + heapRelativeOffset;
     return std::make_unique<Stream::ZstdInflateStream>(
             std::make_shared<Stream::FileDataReadStream>(
-                    dataStream.getFilePath(), absoluteOffset,
+                      dataStream->getFilePath(), absoluteOffset,
                     entryContentCompressedSizeTable[entryName]
             )
     );
@@ -76,7 +76,7 @@ uint64_t WriteOnlyArchive::getEntryTableOffset(uint64_t entryIndex) {
 }
 
 void WriteOnlyArchive::defineEntryFromUncompressedStream(uint64_t entryIndex, const std::string &entryName,
-                                                         Stream::DataReadStream &sourceStream) {
+                                                         const std::shared_ptr<Stream::DataReadStream> &sourceStream) {
 
     if (!entryTableFinalized) {
         RAISE_EXCEPTION(ArchiveEntryTableNotYetFinalizedException,

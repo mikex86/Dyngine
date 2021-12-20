@@ -71,6 +71,17 @@ int64_t AbstractDataReadStream::readInt64() {
     return static_cast<int64_t>(b1 << 56 | b2 << 48 | b3 << 40 | b4 << 32 | b5 << 24 | b6 << 16 | b7 << 8 | b8);
 }
 
+float AbstractDataReadStream::readFloat32() {
+    static_assert(sizeof(float) == 4, "float is not 4 bytes");
+    CHECK_POSITION(4);
+    auto b1 = readUint8();
+    auto b2 = readUint8();
+    auto b3 = readUint8();
+    auto b4 = readUint8();
+    auto value = static_cast<float>(b1 << 24 | b2 << 16 | b3 << 8 | b4);
+    return value;
+}
+
 size_t AbstractDataReadStream::read(uint8_t *buffer, size_t bufferLength) {
     for (size_t i = 0; i < bufferLength; i++) {
         if (size != - 1 && position - startPosition >= size) {

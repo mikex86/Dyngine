@@ -43,7 +43,7 @@ static int run(int argc, char **argv) {
         if (relativePath.empty()) {
             continue;
         }
-        Stream::FileDataReadStream fileStream = Stream::FileDataReadStream::Open(filePath);
+        std::shared_ptr<Stream::FileDataReadStream> fileStream = Stream::FileDataReadStream::Open(filePath);
         archive.defineEntryFromUncompressedStream(entryIndex, relativePath, fileStream);
     }
 

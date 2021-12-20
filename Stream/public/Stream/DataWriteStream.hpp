@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <Stream/DataReadStream.hpp>
 
 namespace Stream {
@@ -31,13 +32,15 @@ namespace Stream {
 
         virtual void writeInt64(int64_t int64) = 0;
 
+        virtual void writeFloat32(float f32) = 0;
+
         /**
          * @brief Writes the contents of the supplied stream to this stream.
          * @param stream the input stream to read from
          * @return a pair of {the number of bytes written, the number of bytes read}.
          * These two values can differ in some stream implementations, eg when compression is utilized.
          */
-        virtual std::pair<size_t, size_t> writeStreamContents(Stream::DataReadStream &stream) = 0;
+        virtual std::pair<size_t, size_t> writeStreamContents(const std::shared_ptr<Stream::DataReadStream> &stream) = 0;
 
         virtual void writeBuffer(const uint8_t *buffer, size_t size) = 0;
 

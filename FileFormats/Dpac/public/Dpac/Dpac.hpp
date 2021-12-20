@@ -28,7 +28,7 @@ namespace Dpac {
 
     class ReadOnlyArchive {
     private:
-        Stream::FileDataReadStream dataStream;
+        std::shared_ptr<Stream::FileDataReadStream> dataStream;
 
         uint64_t heapStart{};
 
@@ -93,7 +93,7 @@ namespace Dpac {
         static WriteOnlyArchive Open(const std::string &archiveFilePath);
 
         void defineEntryFromUncompressedStream(uint64_t entryIndex, const std::string &entryName,
-                                               Stream::DataReadStream &uncompressedStream);
+                                               const std::shared_ptr<Stream::DataReadStream> &uncompressedStream);
 
         void reserveNEntries(uint64_t numEntries);
 

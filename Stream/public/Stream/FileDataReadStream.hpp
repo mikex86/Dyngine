@@ -19,8 +19,6 @@ namespace Stream {
         size_t bufferLength{};
         size_t bufferCapacity = 65536;
 
-        explicit FileDataReadStream(const std::string &filePath);
-
         void close();
 
     public:
@@ -29,7 +27,7 @@ namespace Stream {
 
         ~FileDataReadStream() override;
 
-        static FileDataReadStream Open(const std::string &filePath);
+        static std::shared_ptr<FileDataReadStream> Open(const std::string &filePath);
 
         uint8_t readUint8() override;
 
@@ -42,5 +40,7 @@ namespace Stream {
         [[nodiscard]] const std::string &getFilePath() const;
 
         [[nodiscard]] bool hasRemaining() const override;
+
+        explicit FileDataReadStream(const std::string &filePath);
     };
 }
