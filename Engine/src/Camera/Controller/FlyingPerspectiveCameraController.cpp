@@ -1,4 +1,4 @@
-#include "FlyingPerspectiveCameraController.hpp"
+#include <Camera/Controller/FlyingPerspectiveCameraController.hpp>
 #include <utility>
 #include <iostream>
 

@@ -1,4 +1,4 @@
-#include "PerspectiveCamera.hpp"
+#include <Camera/PerspectiveCamera.hpp>
 
 PerspectiveCamera::PerspectiveCamera(float fovDegrees, float aspect, float near, float far) : fov(fovDegrees),
                                                                                               aspect(aspect),

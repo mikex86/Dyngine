@@ -2,7 +2,7 @@
 
 #include <memory>
 #include <LLGL/Input.h>
-#include "../PerspectiveCamera.hpp"
+#include <Camera/PerspectiveCamera.hpp>
 
 class FlyingPerspectiveCameraController {
 

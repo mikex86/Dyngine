@@ -1,4 +1,5 @@
 #include "DAsset/Asset.hpp"
+#include "ErrorHandling/IllegalArgumentException.hpp"
 #include <ErrorHandling/IllegalStateException.hpp>
 #include <optional>
 
@@ -56,6 +57,10 @@ void WriteNode(const DAsset::BufferCollection &bufferCollection, const DAsset::N
     stream->writeFloat32(node.scale.y);
     stream->writeFloat32(node.scale.z);
     WriteMesh(bufferCollection, node.mesh, stream);
+    stream->writeInt64(node.children.size());
+    for (const auto &child: node.children) {
+        WriteNode(bufferCollection, child, stream);
+    }
 }
 
 void WriteBufferCollection(const DAsset::BufferCollection &collection,
@@ -123,6 +128,10 @@ ReadNode(const DAsset::BufferCollection &bufferCollection, const std::shared_ptr
     node.scale.y = stream->readFloat32();
     node.scale.z = stream->readFloat32();
     node.mesh = ReadMesh(bufferCollection, stream);
+    auto nChildren = stream->readInt64();
+    for (uint64_t i = 0; i < nChildren; ++i) {
+        node.children.push_back(ReadNode(bufferCollection, stream));
+    }
     return node;
 }
 
@@ -208,6 +217,55 @@ std::string DAsset::GetComponentTypeName(const DAsset::ComponentType type) {
         default:
             return "UNKNOWN";
     }
+}
+
+
+uint64_t DAsset::GetStride(DAsset::DataType dataType, DAsset::ComponentType componentType) {
+    uint64_t stride = 0;
+    switch (dataType) {
+        case DAsset::DataType::BYTE:
+        case DAsset::DataType::UNSIGNED_BYTE:
+            stride = 1;
+            break;
+        case DAsset::DataType::SHORT:
+        case DAsset::DataType::UNSIGNED_SHORT:
+            stride = 2;
+            break;
+        case DAsset::DataType::INT:
+        case DAsset::DataType::UNSIGNED_INT:
+        case DAsset::DataType::FLOAT:
+            stride = 4;
+            break;
+        default:
+            RAISE_EXCEPTION(errorhandling::IllegalArgumentException, "Unknown data type");
+    }
+    uint64_t componentCount = 0;
+    switch (componentType) {
+        case DAsset::ComponentType::SCALAR:
+            componentCount = 1;
+            break;
+        case DAsset::ComponentType::VEC2:
+            componentCount = 2;
+            break;
+        case DAsset::ComponentType::VEC3:
+            componentCount = 3;
+            break;
+        case DAsset::ComponentType::VEC4:
+            componentCount = 4;
+            break;
+        case DAsset::ComponentType::MAT2:
+            componentCount = 4;
+            break;
+        case DAsset::ComponentType::MAT3:
+            componentCount = 9;
+            break;
+        case DAsset::ComponentType::MAT4:
+            componentCount = 16;
+            break;
+        default:
+            RAISE_EXCEPTION(errorhandling::IllegalArgumentException, "Unknown component type");
+    }
+    return stride * componentCount;
 }
 
 std::optional<uint64_t> DAsset::BufferCollection::find(const std::shared_ptr<DAsset::Buffer> &buffer) const {

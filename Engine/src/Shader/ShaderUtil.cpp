@@ -1,4 +1,4 @@
-#include "ShaderUtil.hpp"
+#include <Shader/ShaderUtil.hpp>
 #include "Stream/MemoryDataStream.hpp"
 #include <ErrorHandling/IllegalStateException.hpp>
 #include <DShader/DShader.hpp>
@@ -8,17 +8,18 @@ namespace ShaderUtil {
     EXCEPTION_TYPE_DEFAULT_IMPL(ShaderLoadingException);
     EXCEPTION_TYPE_DEFAULT_IMPL(ShaderProgramCreationException);
 
-    bool IsSupported(const std::shared_ptr<LLGL::RenderSystem> &renderSystem, LLGL::ShadingLanguage lang) {
-        const auto &supportedShadingLanguages = renderSystem->GetRenderingCaps().shadingLanguages;
+    bool IsSupported(const LLGL::RenderSystem &renderSystem, LLGL::ShadingLanguage lang) {
+        const auto &supportedShadingLanguages = renderSystem.GetRenderingCaps().shadingLanguages;
         return (std::find(supportedShadingLanguages.begin(), supportedShadingLanguages.end(), lang) !=
                 supportedShadingLanguages.end());
     }
 
     LLGL::Shader *
     LoadSpirVShader(const std::shared_ptr<Stream::DataReadStream> &stream,
-                    const std::shared_ptr<LLGL::RenderSystem> &renderSystem,
+                    LLGL::RenderSystem &renderSystem,
                     LLGL::ShaderType shaderType,
-                    const LLGL::VertexFormat &vertexFormat
+                    const std::vector<LLGL::VertexAttribute> &vertexInputAttributes,
+                    const std::vector<LLGL::FragmentAttribute> &fragmentOutputAttributes
     ) {
         if (!IsSupported(renderSystem, LLGL::ShadingLanguage::SPIRV)) {
             RAISE_EXCEPTION(errorhandling::IllegalStateException, "Spir-V shading language not available");
@@ -39,9 +40,10 @@ namespace ShaderUtil {
         };
         shaderDesc.sourceType = LLGL::ShaderSourceType::BinaryBuffer;
         shaderDesc.sourceSize = shaderContentSize;
-        shaderDesc.vertex.inputAttribs = vertexFormat.attributes;
+        shaderDesc.vertex.inputAttribs = vertexInputAttributes;
+        shaderDesc.fragment.outputAttribs = fragmentOutputAttributes;
 
-        LLGL::Shader *shader = renderSystem->CreateShader(shaderDesc);
+        LLGL::Shader *shader = renderSystem.CreateShader(shaderDesc);
         delete[] shaderContent;
         if (shader == nullptr || shader->HasErrors()) {
             std::string shaderLog = shader->GetReport();
@@ -52,8 +54,9 @@ namespace ShaderUtil {
     }
 
     LLGL::Shader *LoadHLSLShader(const std::shared_ptr<Stream::DataReadStream> &shaderContentStream,
-                                 const std::shared_ptr<LLGL::RenderSystem> &renderSystem, LLGL::ShaderType shaderType,
-                                 const LLGL::VertexFormat &vertexFormat,
+                                 LLGL::RenderSystem &renderSystem, LLGL::ShaderType shaderType,
+                                 const std::vector<LLGL::VertexAttribute> &vertexInputAttributes,
+                                 const std::vector<LLGL::FragmentAttribute> &fragmentOutputAttributes,
                                  const std::string &entryPoint,
                                  const std::string &profile) {
 
@@ -76,8 +79,9 @@ namespace ShaderUtil {
         };
         shaderDesc.sourceType = LLGL::ShaderSourceType::BinaryBuffer;
         shaderDesc.sourceSize = shaderContentSize;
-        shaderDesc.vertex.inputAttribs = vertexFormat.attributes;
-        LLGL::Shader *shader = renderSystem->CreateShader(shaderDesc);
+        shaderDesc.vertex.inputAttribs = vertexInputAttributes;
+        shaderDesc.fragment.outputAttribs = fragmentOutputAttributes;
+        LLGL::Shader *shader = renderSystem.CreateShader(shaderDesc);
         delete[] shaderContent;
 
         if (shader == nullptr || shader->HasErrors()) {
@@ -90,7 +94,7 @@ namespace ShaderUtil {
 
     LLGL::ShaderProgram *
     CreateShaderProgram(
-            const std::shared_ptr<LLGL::RenderSystem> &renderSystem,
+            LLGL::RenderSystem &renderSystem,
             LLGL::Shader *vertexShader,
             LLGL::Shader *fragmentShader) {
         LLGL::ShaderProgramDescriptor shaderProgramDesc;
@@ -98,7 +102,7 @@ namespace ShaderUtil {
             shaderProgramDesc.vertexShader = vertexShader;
             shaderProgramDesc.fragmentShader = fragmentShader;
         }
-        LLGL::ShaderProgram *shaderProgram = renderSystem->CreateShaderProgram(shaderProgramDesc);
+        LLGL::ShaderProgram *shaderProgram = renderSystem.CreateShaderProgram(shaderProgramDesc);
         if (shaderProgram == nullptr || shaderProgram->HasErrors()) {
             RAISE_EXCEPTION(ShaderProgramCreationException, "Shader program has errors: " + shaderProgram->GetReport());
         }
@@ -106,8 +110,9 @@ namespace ShaderUtil {
     }
 
     LLGL::Shader *LoadGLSLShader(const std::shared_ptr<Stream::DataReadStream> &shaderContentStream,
-                                 const std::shared_ptr<LLGL::RenderSystem> &renderSystem, LLGL::ShaderType shaderType,
-                                 const LLGL::VertexFormat &vertexFormat) {
+                                 LLGL::RenderSystem &renderSystem, LLGL::ShaderType shaderType,
+                                 const std::vector<LLGL::VertexAttribute> &vertexInputAttributes,
+                                 const std::vector<LLGL::FragmentAttribute> &fragmentOutputAttributes) {
         if (!IsSupported(renderSystem, LLGL::ShadingLanguage::GLSL)) {
             RAISE_EXCEPTION(errorhandling::IllegalStateException, "GLSL shading language not available");
         }
@@ -128,9 +133,10 @@ namespace ShaderUtil {
         };
         shaderDesc.sourceType = LLGL::ShaderSourceType::CodeString;
         shaderDesc.sourceSize = shaderContentSize;
-        shaderDesc.vertex.inputAttribs = vertexFormat.attributes;
+        shaderDesc.vertex.inputAttribs = vertexInputAttributes;
+        shaderDesc.fragment.outputAttribs = fragmentOutputAttributes;
 
-        LLGL::Shader *shader = renderSystem->CreateShader(shaderDesc);
+        LLGL::Shader *shader = renderSystem.CreateShader(shaderDesc);
         if (shader == nullptr || shader->HasErrors()) {
             std::string shaderLog = shader->GetReport();
             delete[] shaderContent;
@@ -141,8 +147,9 @@ namespace ShaderUtil {
     }
 
     LLGL::ShaderProgram *LoadDShaderPackage(const std::shared_ptr<Stream::DataReadStream> &dShaderPackageStream,
-                                     const std::shared_ptr<LLGL::RenderSystem> &renderSystem,
-                                     const LLGL::VertexFormat &vertexFormat) {
+                                            LLGL::RenderSystem &renderSystem,
+                                            const std::vector<LLGL::VertexAttribute> &vertexInputAttributes,
+                                            const std::vector<LLGL::FragmentAttribute> &fragmentOutputAttributes) {
         auto dShaderPackage = DShader::LoadDShader(dShaderPackageStream);
         std::vector<uint8_t> vertexShaderContent{}, fragmentShaderContent{};
         if (IsSupported(renderSystem, LLGL::ShadingLanguage::SPIRV)) {
@@ -221,14 +228,17 @@ namespace ShaderUtil {
                 std::shared_ptr<Stream::DataReadStream>(
                         Stream::MemoryReadStream::CopyOf(vertexShaderContent.data(), vertexShaderContent.size())
                 ),
-                renderSystem, LLGL::ShaderType::Vertex, vertexFormat
+                renderSystem, LLGL::ShaderType::Vertex, vertexInputAttributes, fragmentOutputAttributes
         );
         auto fragmentShader = LoadSpirVShader(
                 std::shared_ptr<Stream::DataReadStream>(
                         Stream::MemoryReadStream::CopyOf(fragmentShaderContent.data(), fragmentShaderContent.size())
                 ),
-                renderSystem, LLGL::ShaderType::Fragment, vertexFormat
+                renderSystem, LLGL::ShaderType::Fragment, vertexInputAttributes, fragmentOutputAttributes
         );
-        return CreateShaderProgram(renderSystem, vertexShader, fragmentShader);
+        LLGL::ShaderProgram *shaderProgram = CreateShaderProgram(renderSystem, vertexShader, fragmentShader);
+        renderSystem.Release(*vertexShader);
+        renderSystem.Release(*fragmentShader);
+        return shaderProgram;
     }
 }

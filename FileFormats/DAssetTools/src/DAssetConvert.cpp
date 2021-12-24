@@ -149,10 +149,11 @@ FromGLTFMesh(DAsset::BufferCollection &bufferCollection, const tinygltf::Model &
             auto dAssetBuffer = bufferCollection.buffers[bufferView.buffer];
             auto attributeType = GetAttributeType(targetName);
             attributeBufferViews[attributeType] = {bufferView.byteOffset + accessor.byteOffset, accessor.count,
-                                                bufferView.byteStride,
-                                                GetDataType(accessor.componentType),
-                                                GetComponentType(accessor.type),
-                                                dAssetBuffer};
+                                                   bufferView.byteStride,
+                                                   GetDataType(accessor.componentType),
+                                                   GetComponentType(accessor.type),
+                                                   dAssetBuffer
+            };
         }
         DAsset::MeshPart dAssetMeshPart{GetRenderMode(primitive.mode), indexBufferView, attributeBufferViews};
         dAssetMesh.meshParts.push_back(dAssetMeshPart);
@@ -227,11 +228,16 @@ DAsset::Asset FromTinyGLTF(const tinygltf::Model &model) {
     }
     auto bufferCollection = FromGLTFBuffers(model);
     asset.bufferCollection = bufferCollection;
-    DAsset::Node rootNode{};
+    DAsset::Node rootNode{
+            .name = "synthetic_root",
+            .translation = glm::vec3(0.0f, 0.0f, 0.0f),
+            .rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+            .scale = glm::vec3(1.0f, 1.0f, 1.0f)
+    };
     auto gltfRootNodes = model.scenes[0].nodes;
     for (const auto &gltfRootNode: gltfRootNodes) {
         auto gltfNode = model.nodes[gltfRootNode];
-        rootNode = FromGLTFNode(bufferCollection, model, gltfNode);
+        rootNode.children.push_back(FromGLTFNode(bufferCollection, model, gltfNode));
     }
     asset.rootNode = rootNode;
     return asset;

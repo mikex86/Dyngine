@@ -3,11 +3,13 @@
 #include <LLGL/Strings.h>
 #include <LLGL/Utility.h>
 #include <Dpac/Dpac.hpp>
-#include "Shader/ShaderUtil.hpp"
-#include "Camera/PerspectiveCamera.hpp"
-#include "Camera/controller/FlyingPerspectiveCameraController.hpp"
+#include <Shader/ShaderUtil.hpp>
+#include <Camera/PerspectiveCamera.hpp>
+#include <Camera/Controller/FlyingPerspectiveCameraController.hpp>
+#include <Asset/AssetRenderer.hpp>
+#include <Rendering/MeshRenderer.hpp>
 
-std::shared_ptr<LLGL::RenderSystem> setupRenderSystem() {
+std::unique_ptr<LLGL::RenderSystem> setupRenderSystem() {
     LLGL::RenderSystemDescriptor renderSystemDescriptor{};
 #ifdef DYNGINE_USE_VULKAN_API
     // Renderer configuration
@@ -57,39 +59,6 @@ void RunEngine() {
 
     auto renderContext = renderSystem->CreateRenderContext(contextDescriptor, window);
 
-    // Setup Triangle
-    LLGL::Buffer *vertexBuffer;
-    LLGL::VertexFormat vertexFormat{};
-    {
-        // Vertex data (3 vertices for our triangle)
-        const float s = 1.0f;
-
-        // Vertex data structure
-        struct Vertex {
-            float position[3];
-            uint8_t color[4];
-        };
-
-        Vertex vertices[] =
-                {
-                        {{0,  s,  0}, {255, 0,   0,   255}}, // 1st vertex: center-top, red
-                        {{s,  -s, 0}, {0,   255, 0,   255}}, // 2nd vertex: right-bottom, green
-                        {{-s, -s, 0}, {0,   0,   255, 255}}, // 3rd vertex: left-bottom, blue
-                };
-
-        // Vertex format
-        vertexFormat.AppendAttribute({"position", LLGL::Format::RGB32Float}); // vertex position
-        vertexFormat.AppendAttribute({"color", LLGL::Format::RGBA8UNorm}); // color
-        vertexFormat.SetStride(sizeof(Vertex));
-
-        // Vertex Buffer
-        LLGL::BufferDescriptor vertexBufferDesc{
-                .size =sizeof(vertices),
-                .bindFlags = LLGL::BindFlags::VertexBuffer,
-                .vertexAttribs = vertexFormat.attributes
-        };
-        vertexBuffer = renderSystem->CreateBuffer(vertexBufferDesc, vertices);
-    }
 
     auto windowSize = window->GetSize();
 
@@ -100,61 +69,16 @@ void RunEngine() {
 
     camera.setPosition({0, 0, 5});
 
-    // Setup ShaderProgram
-    LLGL::ShaderProgram *shaderProgram;
-    {
-        shaderProgram = ShaderUtil::LoadDShaderPackage(
-                engineResources.getEntryStream("/shaders/triangle.dsp"),
-                renderSystem,
-                vertexFormat
-        );
-    }
-
-    // Create CameraShaderStateBuffer Buffer
-    LLGL::Buffer *cameraShaderStateBuffer;
-    {
-        cameraShaderStateBuffer = renderSystem->CreateBuffer(
-                LLGL::ConstantBufferDesc(
-                        sizeof(CameraShaderState)
-                ),
-                &camera.getCameraShaderState()
-        );
-    }
-
-    // Setup pipeline
-    LLGL::PipelineLayout *pipelineLayout = renderSystem->CreatePipelineLayout(
-            LLGL::PipelineLayoutDesc("cbuffer(CameraShaderState@1):frag:vert")
-    );
-
-    LLGL::PipelineState *pipeline;
-    {
-        LLGL::GraphicsPipelineDescriptor pipelineDescriptor{
-                .pipelineLayout = pipelineLayout,
-                .shaderProgram = shaderProgram,
-                .renderPass = renderContext->GetRenderPass(),
-        };
-
-        pipeline = renderSystem->CreatePipelineState(pipelineDescriptor);
-    }
-
-    // Create ResourceHeap
-    LLGL::ResourceHeap *resourceHeap;
-    {
-        LLGL::ResourceHeapDescriptor resourceHeapDesc{
-                .pipelineLayout = pipelineLayout,
-                .resourceViews = {cameraShaderStateBuffer}
-        };
-        resourceHeap = renderSystem->CreateResourceHeap(resourceHeapDesc);
-    }
+    std::shared_ptr<MeshRenderer> meshRenderer = std::shared_ptr<MeshRenderer>(MeshRenderer::newTriangleMeshRenderer(renderSystem, renderContext, camera));
 
     LLGL::CommandQueue *queue = renderSystem->GetCommandQueue();
 
-    LLGL::CommandBuffer *mainCmd;
+    LLGL::CommandBuffer *commandBuffer;
     {
         LLGL::CommandBufferDescriptor commandBufferDescriptor{
                 .flags =(LLGL::CommandBufferFlags::MultiSubmit)
         };
-        mainCmd = renderSystem->CreateCommandBuffer(commandBufferDescriptor);
+        commandBuffer = renderSystem->CreateCommandBuffer(commandBufferDescriptor);
     }
 
     window->Show();
@@ -177,6 +101,9 @@ void RunEngine() {
 
     FlyingPerspectiveCameraController cameraController(camera, input, display, window);
 
+//    auto asset = DAsset::ReadAsset(engineResources.getEntryStream("/test.dasset"));
+//    AssetRenderer renderer(asset);
+//
     // Main loop
     while (window->ProcessEvents()) {
 
@@ -203,29 +130,20 @@ void RunEngine() {
 
         // Record commands
         if (hasChanged) {
-            mainCmd->Begin();
-            mainCmd->SetPipelineState(*pipeline);
-            mainCmd->SetResourceHeap(*resourceHeap);
-
+            commandBuffer->Begin();
             {
-                mainCmd->SetClearColor(LLGL::ColorRGBAf(0.1f, 0.1f, 0.1f));
-                mainCmd->BeginRenderPass(*renderContext);
+                commandBuffer->SetClearColor(LLGL::ColorRGBAf(0.1f, 0.1f, 0.1f));
+                commandBuffer->BeginRenderPass(*renderContext);
                 {
-                    mainCmd->Clear(LLGL::ClearFlags::ColorDepth);
-                    mainCmd->SetViewport(window->GetSize());
-                    mainCmd->SetVertexBuffer(*vertexBuffer);
-                    mainCmd->UpdateBuffer(*cameraShaderStateBuffer,
-                                          0,
-                                          &camera.getCameraShaderState(),
-                                          sizeof(CameraShaderState)
-                    );
-                    mainCmd->Draw(3, 0);
+                    commandBuffer->Clear(LLGL::ClearFlags::ColorDepth);
+                    commandBuffer->SetViewport(window->GetSize());
+                    meshRenderer->render(*commandBuffer);
                 }
-                mainCmd->EndRenderPass();
+                commandBuffer->EndRenderPass();
             }
-            mainCmd->End();
+            commandBuffer->End();
         }
-        queue->Submit(*mainCmd);
+        queue->Submit(*commandBuffer);
         renderContext->Present();
         frameTimer->MeasureTime();
     }
@@ -233,7 +151,7 @@ void RunEngine() {
 
 int main() {
 //    try {
-        RunEngine();
+    RunEngine();
 //    } catch (std::exception &e) {
 //        std::cerr << "RunEngine() failed exceptionally: " << e.what() << std::endl;
 //    }

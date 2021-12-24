@@ -1,14 +1,8 @@
 #pragma once
 
-#include "Camera.hpp"
+#include <Camera/Camera.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-
-struct CameraShaderState {
-    glm::mat4 viewMatrix{};
-    glm::mat4 projectionMatrix{};
-    glm::mat4 modelMatrix{};
-};
 
 class PerspectiveCamera : public ICamera {
 private:
@@ -48,7 +42,9 @@ public:
 
     [[nodiscard]] const glm::mat4 &getViewMatrix() const;
 
-    [[nodiscard]] const CameraShaderState &getCameraShaderState() const;
+    const CameraShaderState &getCameraShaderState() const override;
+
+public:
 
     [[nodiscard]] float getYaw() const;
 

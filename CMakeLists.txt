@@ -93,7 +93,6 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     endif ()
 endif ()
 
-
 add_compile_definitions(LLGL_ENABLE_UTILITY) # Enable the Utility functions
 
 # Engine Module

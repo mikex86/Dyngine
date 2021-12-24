@@ -109,4 +109,6 @@ namespace DAsset {
     std::string GetDataTypeName(const DataType type);
 
     std::string GetComponentTypeName(const ComponentType type);
+
+    uint64_t GetStride(DataType dataType, ComponentType componentType);
 }
