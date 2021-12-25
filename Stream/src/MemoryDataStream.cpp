@@ -3,8 +3,8 @@
 
 using namespace Stream;
 
-MemoryReadStream::MemoryReadStream(const uint8_t *memory, size_t size, bool copyMemory) : AbstractDataReadStream(size,
-                                                                                                                 0) {
+MemoryReadStream::MemoryReadStream(const uint8_t *memory, size_t size, bool copyMemory)
+        : AbstractDataReadStream(size, 0) {
     if (copyMemory) {
         this->memory = new uint8_t[size];
         memcpy(const_cast<uint8_t *>(this->memory), memory, size);
@@ -13,12 +13,12 @@ MemoryReadStream::MemoryReadStream(const uint8_t *memory, size_t size, bool copy
     }
 }
 
-std::shared_ptr<MemoryReadStream> MemoryReadStream::CopyOf(const uint8_t *memory, size_t size) {
-    return std::make_shared<MemoryReadStream>(memory, size, true);
+std::unique_ptr<MemoryReadStream> MemoryReadStream::CopyOf(const uint8_t *memory, size_t size) {
+    return std::make_unique<MemoryReadStream>(memory, size, true);
 }
 
-std::shared_ptr<MemoryReadStream> MemoryReadStream::Wrap(const uint8_t *memory, size_t size) {
-    return std::make_shared<MemoryReadStream>(memory, size, false);
+std::unique_ptr<MemoryReadStream> MemoryReadStream::Wrap(const uint8_t *memory, size_t size) {
+    return std::make_unique<MemoryReadStream>(memory, size, false);
 }
 
 #define CHECK_POSITION(neededCapacity) \

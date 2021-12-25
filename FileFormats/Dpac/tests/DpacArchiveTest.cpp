@@ -18,18 +18,24 @@ TEST(DpacArchive, DpacWriteAndReadTest) {
         writeArchive.reserveNEntries(3);
         writeArchive.finalizeEntryTable();
         {
-            auto memoryStream = Stream::MemoryReadStream(reinterpret_cast<const uint8_t *>(memoryContent1),
-                                                         memoryContentLength1, false);
+            std::shared_ptr<Stream::DataReadStream> memoryStream = Stream::MemoryReadStream::CopyOf(
+                    reinterpret_cast<const uint8_t *>(memoryContent1),
+                    memoryContentLength1
+            );
             writeArchive.defineEntryFromUncompressedStream(0, "/entry1.txt", memoryStream);
         }
         {
-            auto memoryStream = Stream::MemoryReadStream(reinterpret_cast<const uint8_t *>(memoryContent2),
-                                                         memoryContentLength2, false);
+            std::shared_ptr<Stream::DataReadStream> memoryStream = Stream::MemoryReadStream::CopyOf(
+                    reinterpret_cast<const uint8_t *>(memoryContent2),
+                    memoryContentLength2
+            );
             writeArchive.defineEntryFromUncompressedStream(1, "/entry2.txt", memoryStream);
         }
         {
-            auto memoryStream = Stream::MemoryReadStream(reinterpret_cast<const uint8_t *>(memoryContent3),
-                                                         memoryContentLength3, false);
+            std::shared_ptr<Stream::DataReadStream> memoryStream = Stream::MemoryReadStream::CopyOf(
+                    reinterpret_cast<const uint8_t *>(memoryContent3),
+                    memoryContentLength3
+            );
             writeArchive.defineEntryFromUncompressedStream(2, "/entry3.txt", memoryStream);
         }
     }

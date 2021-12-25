@@ -38,8 +38,8 @@ FileDataReadStream::FileDataReadStream(const std::string &filePath) :
         FileDataReadStream(filePath, 0, FileDataStreamGetFileSize(filePath)) {
 }
 
-std::shared_ptr<FileDataReadStream> FileDataReadStream::Open(const std::string &filePath) {
-    return std::make_shared<FileDataReadStream>(filePath);
+std::unique_ptr<FileDataReadStream> FileDataReadStream::Open(const std::string &filePath) {
+    return std::make_unique<FileDataReadStream>(filePath);
 }
 
 uint8_t FileDataReadStream::readUint8() {

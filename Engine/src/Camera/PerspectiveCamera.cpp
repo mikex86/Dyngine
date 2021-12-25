@@ -71,6 +71,11 @@ void PerspectiveCamera::setFov(float fov) {
     PerspectiveCamera::fov = fov;
 }
 
+void PerspectiveCamera::setModelMatrix(const glm::mat4 &modelMatrix) {
+    cameraShaderState.modelMatrix = modelMatrix;
+    hasChanged = true;
+}
+
 const CameraShaderState &PerspectiveCamera::getCameraShaderState() const {
     return cameraShaderState;
 }

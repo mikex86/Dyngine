@@ -6,10 +6,10 @@
 #define MAX_NODE_NAME_LENGTH 32
 
 void WriteBufferView(const DAsset::BufferCollection &bufferCollection, const DAsset::BufferView &bufferView,
-                     const std::shared_ptr<Stream::DataWriteStream> &stream) {
-    stream->writeInt64(bufferView.offset);
-    stream->writeInt64(bufferView.length);
-    stream->writeInt64(bufferView.stride);
+                     const std::unique_ptr<Stream::DataWriteStream> &stream) {
+    stream->writeInt64(bufferView.byteOffset);
+    stream->writeInt64(bufferView.byteLength);
+    stream->writeInt64(bufferView.byteStride);
     stream->writeInt8(static_cast<int8_t>(bufferView.dataType));
     stream->writeInt8(static_cast<int8_t>(bufferView.componentType));
     auto indexOpt = bufferCollection.find(bufferView.buffer);
@@ -20,7 +20,7 @@ void WriteBufferView(const DAsset::BufferCollection &bufferCollection, const DAs
 }
 
 void WriteMeshPart(const DAsset::BufferCollection &bufferCollection, const DAsset::MeshPart &meshPart,
-                   const std::shared_ptr<Stream::DataWriteStream> &stream) {
+                   const std::unique_ptr<Stream::DataWriteStream> &stream) {
     stream->writeInt8(static_cast<int8_t>(meshPart.renderMode));
     if (meshPart.indexBufferView.has_value()) {
         stream->writeInt8(1);
@@ -36,7 +36,7 @@ void WriteMeshPart(const DAsset::BufferCollection &bufferCollection, const DAsse
 }
 
 void WriteMesh(const DAsset::BufferCollection &bufferCollection, const DAsset::Mesh &mesh,
-               const std::shared_ptr<Stream::DataWriteStream> &stream) {
+               const std::unique_ptr<Stream::DataWriteStream> &stream) {
     stream->writeInt64(mesh.meshParts.size());
     for (const auto &meshPart: mesh.meshParts) {
         WriteMeshPart(bufferCollection, meshPart, stream);
@@ -44,7 +44,7 @@ void WriteMesh(const DAsset::BufferCollection &bufferCollection, const DAsset::M
 }
 
 void WriteNode(const DAsset::BufferCollection &bufferCollection, const DAsset::Node &node,
-               const std::shared_ptr<Stream::DataWriteStream> &stream) {
+               const std::unique_ptr<Stream::DataWriteStream> &stream) {
     stream->writeFixedString(node.name, MAX_NODE_NAME_LENGTH);
     stream->writeFloat32(node.translation.x);
     stream->writeFloat32(node.translation.y);
@@ -64,7 +64,7 @@ void WriteNode(const DAsset::BufferCollection &bufferCollection, const DAsset::N
 }
 
 void WriteBufferCollection(const DAsset::BufferCollection &collection,
-                           const std::shared_ptr<Stream::DataWriteStream> &stream) {
+                           const std::unique_ptr<Stream::DataWriteStream> &stream) {
     stream->writeInt64(collection.buffers.size());
     for (const auto &buffer: collection.buffers) {
         stream->writeInt64(buffer->data.size());
@@ -72,18 +72,18 @@ void WriteBufferCollection(const DAsset::BufferCollection &collection,
     }
 }
 
-void DAsset::WriteAsset(const DAsset::Asset &asset, const std::shared_ptr<Stream::DataWriteStream> &stream) {
+void DAsset::WriteAsset(const DAsset::Asset &asset, const std::unique_ptr<Stream::DataWriteStream> &stream) {
     WriteBufferCollection(asset.bufferCollection, stream);
     WriteNode(asset.bufferCollection, asset.rootNode, stream);
 }
 
 DAsset::BufferView
 ReadBufferView(const DAsset::BufferCollection &bufferCollection,
-               const std::shared_ptr<Stream::DataReadStream> &stream) {
+               const std::unique_ptr<Stream::DataReadStream> &stream) {
     DAsset::BufferView bufferView{};
-    bufferView.offset = stream->readInt64();
-    bufferView.length = stream->readInt64();
-    bufferView.stride = stream->readInt64();
+    bufferView.byteOffset = stream->readInt64();
+    bufferView.byteLength = stream->readInt64();
+    bufferView.byteStride = stream->readInt64();
     bufferView.dataType = static_cast<DAsset::DataType>(stream->readInt8());
     bufferView.componentType = static_cast<DAsset::ComponentType>(stream->readInt8());
     uint64_t bufferIndex = stream->readInt64();
@@ -96,7 +96,7 @@ ReadBufferView(const DAsset::BufferCollection &bufferCollection,
 }
 
 DAsset::Mesh
-ReadMesh(const DAsset::BufferCollection &bufferCollection, const std::shared_ptr<Stream::DataReadStream> &stream) {
+ReadMesh(const DAsset::BufferCollection &bufferCollection, const std::unique_ptr<Stream::DataReadStream> &stream) {
     DAsset::Mesh mesh{};
     mesh.meshParts.resize(stream->readInt64());
     for (auto &meshPart: mesh.meshParts) {
@@ -114,7 +114,7 @@ ReadMesh(const DAsset::BufferCollection &bufferCollection, const std::shared_ptr
 }
 
 DAsset::Node
-ReadNode(const DAsset::BufferCollection &bufferCollection, const std::shared_ptr<Stream::DataReadStream> &stream) {
+ReadNode(const DAsset::BufferCollection &bufferCollection, const std::unique_ptr<Stream::DataReadStream> &stream) {
     DAsset::Node node{};
     node.name = stream->readFixedString(MAX_NODE_NAME_LENGTH);
     node.translation.x = stream->readFloat32();
@@ -135,7 +135,7 @@ ReadNode(const DAsset::BufferCollection &bufferCollection, const std::shared_ptr
     return node;
 }
 
-DAsset::BufferCollection ReadBufferCollection(const std::shared_ptr<Stream::DataReadStream> &stream) {
+DAsset::BufferCollection ReadBufferCollection(const std::unique_ptr<Stream::DataReadStream> &stream) {
     auto bufferCount = stream->readInt64();
     DAsset::BufferCollection collection;
     collection.buffers = std::vector<std::shared_ptr<DAsset::Buffer>>(bufferCount);
@@ -148,7 +148,7 @@ DAsset::BufferCollection ReadBufferCollection(const std::shared_ptr<Stream::Data
     return collection;
 }
 
-DAsset::Asset DAsset::ReadAsset(const std::shared_ptr<Stream::DataReadStream> &stream) {
+DAsset::Asset DAsset::ReadAsset(const std::unique_ptr<Stream::DataReadStream> &stream) {
     DAsset::Asset asset{};
     auto bufferCollection = ReadBufferCollection(stream);
     asset.bufferCollection = bufferCollection;
@@ -219,8 +219,28 @@ std::string DAsset::GetComponentTypeName(const DAsset::ComponentType type) {
     }
 }
 
+std::string DAsset::GetRenderModeName(DAsset::RenderMode renderMode) {
+    switch (renderMode) {
+        case RenderMode::TRIANGLES:
+            return "TRIANGLES";
+        case RenderMode::TRIANGLE_STRIP:
+            return "TRIANGLE_STRIP";
+        case RenderMode::TRIANGLE_FAN:
+            return "TRIANGLE_FAN";
+        case RenderMode::LINES:
+            return "LINES";
+        case RenderMode::LINE_STRIP:
+            return "LINE_STRIP";
+        case RenderMode::LINE_LOOP:
+            return "LINE_LOOP";
+        case RenderMode::POINTS:
+            return "POINTS";
+        default:
+            return "UNKNOWN";
+    }
+}
 
-uint64_t DAsset::GetStride(DAsset::DataType dataType, DAsset::ComponentType componentType) {
+uint64_t DAsset::GetSize(DAsset::DataType dataType, DAsset::ComponentType componentType) {
     uint64_t stride = 0;
     switch (dataType) {
         case DAsset::DataType::BYTE:

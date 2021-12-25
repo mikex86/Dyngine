@@ -135,10 +135,14 @@ FromGLTFMesh(DAsset::BufferCollection &bufferCollection, const tinygltf::Model &
             auto accessor = model.accessors[primitive.indices];
             auto bufferView = model.bufferViews[accessor.bufferView];
             auto dAssetBuffer = bufferCollection.buffers[bufferView.buffer];
-            indexBufferView = DAsset::BufferView{bufferView.byteOffset + accessor.byteOffset, accessor.count,
+            auto dataType = GetDataType(accessor.componentType);
+            auto componentType = GetComponentType(accessor.type);
+            auto elementSize = DAsset::GetSize(dataType, componentType);
+            indexBufferView = DAsset::BufferView{bufferView.byteOffset + accessor.byteOffset,
+                                                 accessor.count * elementSize,
                                                  bufferView.byteStride,
-                                                 GetDataType(accessor.componentType),
-                                                 GetComponentType(accessor.type),
+                                                 dataType,
+                                                 componentType,
                                                  dAssetBuffer};
         }
         std::map<DAsset::AttributeType, DAsset::BufferView> attributeBufferViews{};
@@ -148,10 +152,14 @@ FromGLTFMesh(DAsset::BufferCollection &bufferCollection, const tinygltf::Model &
             auto bufferView = model.bufferViews[accessor.bufferView];
             auto dAssetBuffer = bufferCollection.buffers[bufferView.buffer];
             auto attributeType = GetAttributeType(targetName);
-            attributeBufferViews[attributeType] = {bufferView.byteOffset + accessor.byteOffset, accessor.count,
+            auto dataType = GetDataType(accessor.componentType);
+            auto componentType = GetComponentType(accessor.type);
+            auto elementSize = DAsset::GetSize(dataType, componentType);
+            attributeBufferViews[attributeType] = {bufferView.byteOffset + accessor.byteOffset,
+                                                   accessor.count * elementSize,
                                                    bufferView.byteStride,
-                                                   GetDataType(accessor.componentType),
-                                                   GetComponentType(accessor.type),
+                                                   dataType,
+                                                   componentType,
                                                    dAssetBuffer
             };
         }
@@ -191,6 +199,8 @@ FromGLTFNode(DAsset::BufferCollection &bufferCollection, const tinygltf::Model &
             }
             if (gltfNode.scale.size() == 3) {
                 dAssetNode.scale = glm::vec3(gltfNode.scale[0], gltfNode.scale[1], gltfNode.scale[2]);
+            } else {
+                dAssetNode.scale = glm::vec3(1.0f);
             }
         }
     }

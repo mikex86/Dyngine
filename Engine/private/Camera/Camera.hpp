@@ -21,4 +21,9 @@ public:
      */
     [[nodiscard]] virtual const CameraShaderState &getCameraShaderState() const = 0;
 
+    /**
+     * Sets the camera's model matrix
+     */
+    virtual void setModelMatrix(const glm::mat4 &modelMatrix) = 0;
+
 };

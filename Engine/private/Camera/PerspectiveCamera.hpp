@@ -44,6 +44,8 @@ public:
 
     const CameraShaderState &getCameraShaderState() const override;
 
+    void setModelMatrix(const glm::mat4 &modelMatrix) override;
+
 public:
 
     [[nodiscard]] float getYaw() const;

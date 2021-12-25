@@ -15,7 +15,7 @@ namespace ShaderUtil {
     }
 
     LLGL::Shader *
-    LoadSpirVShader(const std::shared_ptr<Stream::DataReadStream> &stream,
+    LoadSpirVShader(const std::unique_ptr<Stream::DataReadStream> &stream,
                     LLGL::RenderSystem &renderSystem,
                     LLGL::ShaderType shaderType,
                     const std::vector<LLGL::VertexAttribute> &vertexInputAttributes,
@@ -53,7 +53,7 @@ namespace ShaderUtil {
         return shader;
     }
 
-    LLGL::Shader *LoadHLSLShader(const std::shared_ptr<Stream::DataReadStream> &shaderContentStream,
+    LLGL::Shader *LoadHLSLShader(const std::unique_ptr<Stream::DataReadStream> &shaderContentStream,
                                  LLGL::RenderSystem &renderSystem, LLGL::ShaderType shaderType,
                                  const std::vector<LLGL::VertexAttribute> &vertexInputAttributes,
                                  const std::vector<LLGL::FragmentAttribute> &fragmentOutputAttributes,
@@ -109,7 +109,7 @@ namespace ShaderUtil {
         return shaderProgram;
     }
 
-    LLGL::Shader *LoadGLSLShader(const std::shared_ptr<Stream::DataReadStream> &shaderContentStream,
+    LLGL::Shader *LoadGLSLShader(const std::unique_ptr<Stream::DataReadStream> &shaderContentStream,
                                  LLGL::RenderSystem &renderSystem, LLGL::ShaderType shaderType,
                                  const std::vector<LLGL::VertexAttribute> &vertexInputAttributes,
                                  const std::vector<LLGL::FragmentAttribute> &fragmentOutputAttributes) {
@@ -146,8 +146,8 @@ namespace ShaderUtil {
         return shader;
     }
 
-    LLGL::ShaderProgram *LoadDShaderPackage(const std::shared_ptr<Stream::DataReadStream> &dShaderPackageStream,
-                                            LLGL::RenderSystem &renderSystem,
+    LLGL::ShaderProgram *LoadDShaderPackage(LLGL::RenderSystem &renderSystem,
+                                            const std::unique_ptr<Stream::DataReadStream> &dShaderPackageStream,
                                             const std::vector<LLGL::VertexAttribute> &vertexInputAttributes,
                                             const std::vector<LLGL::FragmentAttribute> &fragmentOutputAttributes) {
         auto dShaderPackage = DShader::LoadDShader(dShaderPackageStream);
@@ -225,15 +225,11 @@ namespace ShaderUtil {
             throw std::runtime_error("Fragment shader not found in DShader package");
         }
         auto vertexShader = LoadSpirVShader(
-                std::shared_ptr<Stream::DataReadStream>(
-                        Stream::MemoryReadStream::CopyOf(vertexShaderContent.data(), vertexShaderContent.size())
-                ),
+                Stream::MemoryReadStream::CopyOf(vertexShaderContent.data(), vertexShaderContent.size()),
                 renderSystem, LLGL::ShaderType::Vertex, vertexInputAttributes, fragmentOutputAttributes
         );
         auto fragmentShader = LoadSpirVShader(
-                std::shared_ptr<Stream::DataReadStream>(
-                        Stream::MemoryReadStream::CopyOf(fragmentShaderContent.data(), fragmentShaderContent.size())
-                ),
+                Stream::MemoryReadStream::CopyOf(fragmentShaderContent.data(), fragmentShaderContent.size()),
                 renderSystem, LLGL::ShaderType::Fragment, vertexInputAttributes, fragmentOutputAttributes
         );
         LLGL::ShaderProgram *shaderProgram = CreateShaderProgram(renderSystem, vertexShader, fragmentShader);

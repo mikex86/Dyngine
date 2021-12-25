@@ -35,8 +35,8 @@ namespace DShader {
         std::optional<ShaderVariant> find(ShaderType type, ShaderApi api) const;
     };
 
-    DShader LoadDShader(const std::shared_ptr<Stream::DataReadStream> &stream);
+    DShader LoadDShader(const std::unique_ptr<Stream::DataReadStream> &stream);
 
-    void WriteDShader(const std::shared_ptr<Stream::DataWriteStream> &stream, const DShader &shader);
+    void WriteDShader(const std::unique_ptr<Stream::DataWriteStream> &stream, const DShader &shader);
 
 }

@@ -27,7 +27,7 @@ namespace Stream {
 
         ~FileDataReadStream() override;
 
-        static std::shared_ptr<FileDataReadStream> Open(const std::string &filePath);
+        static std::unique_ptr<FileDataReadStream> Open(const std::string &filePath);
 
         uint8_t readUint8() override;
 

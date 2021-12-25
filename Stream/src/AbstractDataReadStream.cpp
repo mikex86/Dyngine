@@ -78,13 +78,13 @@ float AbstractDataReadStream::readFloat32() {
     auto b2 = readUint8();
     auto b3 = readUint8();
     auto b4 = readUint8();
-    auto value = static_cast<float>(b1 << 24 | b2 << 16 | b3 << 8 | b4);
-    return value;
+    auto value = b1 << 24 | b2 << 16 | b3 << 8 | b4;
+    return reinterpret_cast<float &>(value);
 }
 
 size_t AbstractDataReadStream::read(uint8_t *buffer, size_t bufferLength) {
     for (size_t i = 0; i < bufferLength; i++) {
-        if (size != - 1 && position - startPosition >= size) {
+        if (size != -1 && position - startPosition >= size) {
             return i;
         }
         buffer[i] = readUint8();
@@ -114,7 +114,8 @@ std::string AbstractDataReadStream::readFixedString(size_t length) {
     return str;
 }
 
-AbstractDataReadStream::AbstractDataReadStream(uint64_t size, uint64_t position) : size(size), position(position), startPosition(position) {
+AbstractDataReadStream::AbstractDataReadStream(uint64_t size, uint64_t position) : size(size), position(position),
+                                                                                   startPosition(position) {
 }
 
 uint64_t AbstractDataReadStream::getLength() const {

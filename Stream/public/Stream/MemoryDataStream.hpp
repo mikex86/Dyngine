@@ -28,7 +28,7 @@ namespace Stream {
          * The stream will store a copy of the given memory and free it when the stream is destroyed.
          * @param size the size of the memory
          */
-        static std::shared_ptr<MemoryReadStream> CopyOf(const uint8_t *memory, size_t size);
+        static std::unique_ptr<MemoryReadStream> CopyOf(const uint8_t *memory, size_t size);
 
         /**
          * @param memory the memory to read from. The stream will use the memory directly.
@@ -36,7 +36,7 @@ namespace Stream {
          * You are responsible for freeing the memory.
          * @param size the size of the memory
          */
-        static std::shared_ptr<MemoryReadStream> Wrap(const uint8_t *memory, size_t size);
+        static std::unique_ptr<MemoryReadStream> Wrap(const uint8_t *memory, size_t size);
 
         uint8_t readUint8() override;
 

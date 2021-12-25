@@ -48,9 +48,9 @@ namespace DAsset {
     };
 
     struct BufferView {
-        uint64_t offset;
-        uint64_t length;
-        uint64_t stride;
+        uint64_t byteOffset;
+        uint64_t byteLength;
+        uint64_t byteStride;
         DataType dataType;
         ComponentType componentType;
         std::shared_ptr<Buffer> buffer;
@@ -100,9 +100,9 @@ namespace DAsset {
         BufferCollection bufferCollection;
     };
 
-    void WriteAsset(const Asset &asset, const std::shared_ptr<Stream::DataWriteStream> &stream);
+    void WriteAsset(const Asset &asset, const std::unique_ptr<Stream::DataWriteStream> &stream);
 
-    DAsset::Asset ReadAsset(const std::shared_ptr<Stream::DataReadStream> &stream);
+    DAsset::Asset ReadAsset(const std::unique_ptr<Stream::DataReadStream> &stream);
 
     std::string GetAttributeTypeName(const AttributeType type);
 
@@ -110,5 +110,8 @@ namespace DAsset {
 
     std::string GetComponentTypeName(const ComponentType type);
 
-    uint64_t GetStride(DataType dataType, ComponentType componentType);
+    std::string GetRenderModeName(RenderMode renderMode);
+
+    uint64_t GetSize(DataType dataType, ComponentType componentType);
+
 }

@@ -20,7 +20,7 @@ namespace Stream {
 
         ~FileDataWriteStream();
 
-        static std::shared_ptr<FileDataWriteStream> Open(const std::string &filePath);
+        static std::unique_ptr<FileDataWriteStream> Open(const std::string &filePath);
 
         /**
          * Seeks to the specified position

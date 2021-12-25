@@ -50,8 +50,8 @@ namespace Stream {
                                                                             filePath(filePath) {
     }
 
-    std::shared_ptr<FileDataWriteStream> FileDataWriteStream::Open(const std::string &filePath) {
-        return std::make_shared<FileDataWriteStream>(filePath);
+    std::unique_ptr<FileDataWriteStream> FileDataWriteStream::Open(const std::string &filePath) {
+        return std::make_unique<FileDataWriteStream>(filePath);
     }
 
     std::pair<size_t, size_t> FileDataWriteStream::writeStreamContents(const std::shared_ptr<DataReadStream> &inputStream) {

@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
         DShader::ShaderVariant shaderVariant = MakeShaderVariant(shaderVariantFile);
         shaderVariants.push_back(shaderVariant);
     }
-    auto stream = Stream::FileDataWriteStream::Open(outputFile);
+    std::unique_ptr<Stream::DataWriteStream> stream = Stream::FileDataWriteStream::Open(outputFile);
     DShader::DShader shader{
             .name = std::filesystem::path(outputFile).stem().string(),
             .variants = shaderVariants

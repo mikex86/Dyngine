@@ -6,8 +6,9 @@
 #include <Shader/ShaderUtil.hpp>
 #include <Camera/PerspectiveCamera.hpp>
 #include <Camera/Controller/FlyingPerspectiveCameraController.hpp>
+#include <Asset/AssetLoader.hpp>
+#include <Shader/ShaderCache.hpp>
 #include <Asset/AssetRenderer.hpp>
-#include <Rendering/MeshRenderer.hpp>
 
 std::unique_ptr<LLGL::RenderSystem> setupRenderSystem() {
     LLGL::RenderSystemDescriptor renderSystemDescriptor{};
@@ -69,8 +70,16 @@ void RunEngine() {
 
     camera.setPosition({0, 0, 5});
 
-    std::shared_ptr<MeshRenderer> meshRenderer = std::shared_ptr<MeshRenderer>(MeshRenderer::newTriangleMeshRenderer(renderSystem, renderContext, camera));
+    ShaderCache shaderCache(renderSystem, engineResources);
 
+    auto asset = std::unique_ptr<Asset>(AssetLoader::LoadAsset(renderSystem, engineResources.getEntryStream("/test.dasset")));
+    std::shared_ptr<AssetRenderer> assetRenderer = std::shared_ptr<AssetRenderer>(
+            AssetRenderer::fromAsset(renderSystem, renderContext, shaderCache, asset, camera)
+    );
+
+//    std::shared_ptr<MeshRenderer> meshRenderer1 = std::shared_ptr<MeshRenderer>(
+//            MeshRenderer::newTriangleMeshRenderer(renderSystem, renderContext, shaderCache, camera, {0, 0, 0})
+//    );
     LLGL::CommandQueue *queue = renderSystem->GetCommandQueue();
 
     LLGL::CommandBuffer *commandBuffer;
@@ -101,9 +110,7 @@ void RunEngine() {
 
     FlyingPerspectiveCameraController cameraController(camera, input, display, window);
 
-//    auto asset = DAsset::ReadAsset(engineResources.getEntryStream("/test.dasset"));
-//    AssetRenderer renderer(asset);
-//
+
     // Main loop
     while (window->ProcessEvents()) {
 
@@ -132,12 +139,11 @@ void RunEngine() {
         if (hasChanged) {
             commandBuffer->Begin();
             {
-                commandBuffer->SetClearColor(LLGL::ColorRGBAf(0.1f, 0.1f, 0.1f));
                 commandBuffer->BeginRenderPass(*renderContext);
                 {
                     commandBuffer->Clear(LLGL::ClearFlags::ColorDepth);
                     commandBuffer->SetViewport(window->GetSize());
-                    meshRenderer->render(*commandBuffer);
+                    assetRenderer->render(*commandBuffer);
                 }
                 commandBuffer->EndRenderPass();
             }
