@@ -17,7 +17,7 @@ namespace Stream {
         uint8_t *buffer;
         int64_t bufferReadingIndex{};
         size_t bufferLength{};
-        size_t bufferCapacity = 65536;
+        size_t bufferCapacity = READ_BUFFER_SIZE;
 
         void close();
 

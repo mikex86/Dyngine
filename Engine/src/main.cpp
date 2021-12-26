@@ -3,12 +3,12 @@
 #include <LLGL/Strings.h>
 #include <LLGL/Utility.h>
 #include <Dpac/Dpac.hpp>
-#include <Shader/ShaderUtil.hpp>
-#include <Camera/PerspectiveCamera.hpp>
-#include <Camera/Controller/FlyingPerspectiveCameraController.hpp>
-#include <Asset/AssetLoader.hpp>
-#include <Shader/ShaderCache.hpp>
-#include <Asset/AssetRenderer.hpp>
+#include "Rendering/Shader/ShaderUtil.hpp"
+#include "Rendering/Camera/PerspectiveCamera.hpp"
+#include "Rendering/Camera/Controller/FlyingPerspectiveCameraController.hpp"
+#include "Rendering/Asset/AssetLoader.hpp"
+#include "Rendering/Shader/ShaderCache.hpp"
+#include "Rendering/Asset/AssetRenderer.hpp"
 
 std::unique_ptr<LLGL::RenderSystem> setupRenderSystem() {
     LLGL::RenderSystemDescriptor renderSystemDescriptor{};
@@ -72,7 +72,8 @@ void RunEngine() {
 
     ShaderCache shaderCache(renderSystem, engineResources);
 
-    auto asset = std::unique_ptr<Asset>(AssetLoader::LoadAsset(renderSystem, engineResources.getEntryStream("/test.dasset")));
+    auto asset = std::unique_ptr<Asset>(
+            AssetLoader::LoadAsset(renderSystem, engineResources.getEntryStream("/BuddyDroid_01DMG_rig.dasset")));
     std::shared_ptr<AssetRenderer> assetRenderer = std::shared_ptr<AssetRenderer>(
             AssetRenderer::fromAsset(renderSystem, renderContext, shaderCache, asset, camera)
     );
@@ -109,7 +110,6 @@ void RunEngine() {
     std::shared_ptr<LLGL::Display> display = window->FindResidentDisplay();
 
     FlyingPerspectiveCameraController cameraController(camera, input, display, window);
-
 
     // Main loop
     while (window->ProcessEvents()) {

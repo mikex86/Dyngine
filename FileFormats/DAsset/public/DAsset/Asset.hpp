@@ -33,18 +33,20 @@ namespace DAsset {
     };
 
     struct Buffer {
-        uint64_t bufferIndex;
+        uint64_t bufferId;
         std::vector<uint8_t> data;
 
-        Buffer(uint64_t bufferIndex, const std::vector<uint8_t> &data);
+        Buffer(uint64_t bufferId, const std::vector<uint8_t> &data);
     };
 
     struct BufferCollection {
         std::vector<std::shared_ptr<Buffer>> buffers;
 
-        std::optional<uint64_t> find(const std::shared_ptr<DAsset::Buffer> &buffer) const;
+        std::optional<uint64_t> find(const DAsset::Buffer &buffer) const;
 
-        std::shared_ptr<Buffer> getBuffer(uint64_t index) const;
+        std::optional<std::shared_ptr<Buffer>> getBuffer(uint64_t bufferId) const;
+
+        std::shared_ptr<Buffer> newBuffer(const uint8_t *data, size_t length);
     };
 
     struct BufferView {
@@ -55,6 +57,63 @@ namespace DAsset {
         ComponentType componentType;
         std::shared_ptr<Buffer> buffer;
     };
+
+    enum TextureFilter {
+        NEAREST, LINEAR
+    };
+
+    enum TextureAddressMode {
+        REPEAT, MIRROR, CLAMP, BORDER, MIRROR_ONCE
+    };
+
+    struct Texture {
+        uint64_t textureId;
+        int32_t width, height;
+        int32_t channels;
+        uint32_t bitDepth;
+        TextureFilter textureFilter = TextureFilter::LINEAR;
+        TextureAddressMode addressMode = TextureAddressMode::REPEAT;
+
+        Texture(uint64_t textureId);
+
+        BufferView bufferView;
+    };
+
+    struct TextureCollection {
+        std::vector<std::shared_ptr<Texture>> textures;
+
+        std::optional<std::shared_ptr<Texture>> getTexture(uint64_t textureId) const;
+
+        std::optional<uint64_t> find(const DAsset::Texture &texture) const;
+
+        std::shared_ptr<Texture> newTexture();
+    };
+
+    struct Material {
+        uint64_t materialId;
+        glm::vec4 albedoFactor;
+        float roughnessFactor;
+        float metalnessFactor;
+        float ambientOcclusionFactor;
+        float normalScale;
+
+        std::optional<std::shared_ptr<Texture>> albedoTexture = std::nullopt;
+        std::optional<std::shared_ptr<Texture>> normalTexture = std::nullopt;
+        std::optional<std::shared_ptr<Texture>> metallicRoughnessAmbientOcclusionTexture = std::nullopt;
+
+        Material(uint64_t materialId);
+    };
+
+    struct MaterialCollection {
+        std::vector<std::shared_ptr<Material>> materials;
+
+        std::optional<std::shared_ptr<Material>> getMaterial(uint64_t materialId) const;
+
+        std::optional<uint64_t> find(const Material &material) const;
+
+        std::shared_ptr<Material> newMaterial();
+    };
+
 
     enum class RenderMode {
         POINTS,
@@ -80,6 +139,7 @@ namespace DAsset {
         RenderMode renderMode;
         std::optional<BufferView> indexBufferView;
         std::map<AttributeType, BufferView> attributeBufferViews;
+        std::shared_ptr<DAsset::Material> material;
     };
 
     struct Mesh {
@@ -98,6 +158,8 @@ namespace DAsset {
     struct Asset {
         Node rootNode;
         BufferCollection bufferCollection;
+        TextureCollection textureCollection;
+        MaterialCollection materialCollection;
     };
 
     void WriteAsset(const Asset &asset, const std::unique_ptr<Stream::DataWriteStream> &stream);
@@ -114,4 +176,7 @@ namespace DAsset {
 
     uint64_t GetSize(DataType dataType, ComponentType componentType);
 
+    std::string GetTextureAddressModeName(TextureAddressMode mode);
+
+    std::string GetTextureFilterName(TextureFilter filter);
 }

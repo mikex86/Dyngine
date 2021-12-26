@@ -25,6 +25,11 @@ add_subdirectory(libraries/googletest)
 set(ZSTD_BUILD_STATIC ON)
 add_subdirectory("libraries/zstd/build/cmake")
 
+# stb image
+add_library(STB_LIBRARY INTERFACE)
+target_include_directories(STB_LIBRARY INTERFACE "libraries/stb")
+target_compile_definitions(STB_LIBRARY INTERFACE "STB_IMAGE_IMPLEMENTATION" "STB_IMAGE_WRITE_IMPLEMENTATION")
+
 # ErrorHandling Module
 add_subdirectory("ErrorHandling")
 

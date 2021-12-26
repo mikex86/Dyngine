@@ -1,9 +1,11 @@
 #define TINYGLTF_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image.h>
+#include <stb_image_write.h>
+#undef STB_IMAGE_IMPLEMENTATION
+#undef STB_IMAGE_WRITE_IMPLEMENTATION
 
 #include <tiny_gltf.h>
-#include "DAsset/Asset.hpp"
+#include <DAsset/Asset.hpp>
 #include <iostream>
 #include <ErrorHandling/IllegalStateException.hpp>
 
@@ -11,11 +13,72 @@
 
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
+#include <queue>
+#include <map>
 
 DAsset::Asset FromTinyGLTF(const tinygltf::Model &model);
 
 DAsset::AttributeType GetAttributeType(const std::string &attributeName);
+
+struct ConverterState {
+private:
+    /**
+     * Key: (RoughnessMetallicTextureIndex << 32 | OcclusionTextureIndex)
+     * Value: rmaTextureId
+     */
+    std::map<uint64_t, uint64_t> rmaTexturesLookupToId{};
+
+    /**
+     * Key: glTF texture index
+     * Value: DAsset texture id
+     */
+    std::map<uint64_t, uint64_t> textureIndexToIdMapping{};
+
+    /**
+     * Key: glTF material index
+     * value: DAsset material id
+     */
+    std::map<uint64_t, uint64_t> materialIndexToIdMapping{};
+
+public:
+
+    std::optional<uint64_t> getRMATextureId(uint64_t key) {
+        auto it = rmaTexturesLookupToId.find(key);
+        if (it == rmaTexturesLookupToId.end()) {
+            return std::nullopt;
+        }
+        return it->second;
+    }
+
+    void setRMATextureId(uint64_t key, uint64_t value) {
+        rmaTexturesLookupToId[key] = value;
+    }
+
+    std::optional<uint64_t> getTextureId(uint64_t gltfTextureIndex) {
+        auto it = textureIndexToIdMapping.find(gltfTextureIndex);
+        if (it == textureIndexToIdMapping.end()) {
+            return std::nullopt;
+        }
+        return it->second;
+    }
+
+    void setTextureId(uint64_t gltfTextureIndex, uint64_t dAssetTextureId) {
+        textureIndexToIdMapping[gltfTextureIndex] = dAssetTextureId;
+    }
+
+    std::optional<uint64_t> getMaterialId(uint64_t gltfMaterialIndex) {
+        auto it = materialIndexToIdMapping.find(gltfMaterialIndex);
+        if (it == materialIndexToIdMapping.end()) {
+            return std::nullopt;
+        }
+        return it->second;
+    }
+
+    void setMaterialId(uint64_t gltfMaterialIndex, uint64_t dAssetMaterialId) {
+        materialIndexToIdMapping[gltfMaterialIndex] = dAssetMaterialId;
+    }
+
+};
 
 int main(int argc, char **argv) {
     if (argc != 3) {
@@ -124,56 +187,354 @@ DAsset::AttributeType GetAttributeType(const std::string &attributeName) {
     RAISE_EXCEPTION(errorhandling::IllegalStateException, "Unknown attribute type: " + attributeName);
 }
 
+stbi_uc *ReadTextureImageData(const tinygltf::Model &model, uint64_t textureIndex, int32_t &width, int32_t &height,
+                              int32_t &channels, int requiredComp) {
+    auto &gltfTexture = model.textures[textureIndex];
+    auto &gltfImage = model.images[gltfTexture.source];
+    auto &gltfBufferView = model.bufferViews[gltfImage.bufferView];
+    auto &gltfBuffer = model.buffers[gltfBufferView.buffer];
+    auto bufferData = gltfBuffer.data;
+    auto bufferSize = gltfBufferView.byteLength;
+    auto bufferOffset = gltfBufferView.byteOffset;
+    if (gltfBufferView.byteStride != 0) {
+        RAISE_EXCEPTION(errorhandling::IllegalStateException, "Stride not supported on texture buffers");
+    }
+    return stbi_load_from_memory(&bufferData[bufferOffset], bufferSize,
+                                 &width, &height, &channels,
+                                 requiredComp);
+}
+
+struct custom_stbi_mem_context {
+    size_t last_pos;
+    uint8_t *buffer;
+    size_t bufferLength;
+};
+
+void MemoryDecode(void *context, void *data, int size) {
+    static const int bufferSize = 1048560;
+    custom_stbi_mem_context *c = (custom_stbi_mem_context *) context;
+    if (c->buffer == nullptr) {
+        c->buffer = new uint8_t[size];
+        c->bufferLength = size;
+    } else if (c->last_pos + size >= c->bufferLength) {
+        c->bufferLength = c->last_pos + size + bufferSize;
+        auto newBuffer = new uint8_t[c->bufferLength];
+        memcpy(newBuffer, c->buffer, c->last_pos);
+        delete[] c->buffer;
+        c->buffer = newBuffer;
+    }
+    char *src = (char *) data;
+    int cur_pos = c->last_pos;
+    for (int i = 0; i < size; i++) {
+        c->buffer[cur_pos++] = src[i];
+    }
+    c->last_pos = cur_pos;
+}
+
+uint8_t *JpegCompress(const uint8_t *imageData, uint32_t width, uint32_t height, uint32_t channels, uint32_t quality,
+                      size_t &compressedSize) {
+    custom_stbi_mem_context context{};
+    int result = stbi_write_jpg_to_func(MemoryDecode, &context, width, height, channels, imageData, quality);
+    compressedSize = context.last_pos;
+    return context.buffer;
+}
+
+std::optional<std::shared_ptr<DAsset::Texture>>
+GetOrMakeTexture(DAsset::Asset &asset, const tinygltf::Model &model, uint64_t textureIndex,
+                 ConverterState &converterState) {
+    auto &textureCollection = asset.textureCollection;
+    auto &bufferCollection = asset.bufferCollection;
+    if (textureIndex == -1) {
+        return std::nullopt;
+    }
+    auto textureIdOpt = converterState.getTextureId(textureIndex);
+    if (!textureIdOpt.has_value()) {
+        auto texture = textureCollection.newTexture();
+        converterState.setTextureId(textureIndex, texture->textureId);
+
+        stbi_uc *imageData = ReadTextureImageData(model, textureIndex, texture->width, texture->height,
+                                                  texture->channels, STBI_rgb_alpha);
+        texture->bitDepth = 8;
+        if (imageData == nullptr) {
+            RAISE_EXCEPTION(errorhandling::IllegalStateException, "Failed to load texture data");
+        }
+
+        uint32_t imageWidth = texture->width, imageHeight = texture->height, imageChannels = texture->channels;
+        uint64_t imageDataLength = imageWidth * imageWidth * imageChannels;
+
+        size_t compressedImageDataLength{};
+        auto compressedImageData = JpegCompress(
+                imageData, imageWidth, imageHeight,
+                imageChannels, 50, // TODO: remove hardcoded quality
+                compressedImageDataLength
+        );
+        delete[] imageData;
+
+        auto buffer = bufferCollection.newBuffer(compressedImageData, compressedImageDataLength);
+        delete[] compressedImageData;
+
+        texture->bufferView = {
+                .byteOffset = 0,
+                .byteLength = compressedImageDataLength,
+                .byteStride = 0,
+                .dataType = DAsset::DataType::UNSIGNED_BYTE,
+                .componentType = DAsset::ComponentType::VEC4,
+                .buffer = buffer,
+        };
+        return texture;
+    }
+    auto textureId = textureIdOpt.value();
+    auto textureOpt = textureCollection.getTexture(textureId);
+    if (!textureOpt.has_value()) {
+        RAISE_EXCEPTION(errorhandling::IllegalStateException,
+                        "Illegal texture collection state. Texture not found, but ConverterState entry exists");
+    }
+    return textureOpt.value();
+}
+
+std::optional<std::shared_ptr<DAsset::Texture>>
+GetOrMakeRMATexture(DAsset::Asset &asset, const tinygltf::Model &model, const tinygltf::Material &material,
+                    ConverterState &converterState) {
+    auto &textureCollection = asset.textureCollection;
+    auto &bufferCollection = asset.bufferCollection;
+    uint64_t metallicRoughnessTextureIndex = material.pbrMetallicRoughness.metallicRoughnessTexture.index;
+    uint64_t occlusionTextureIndex = material.occlusionTexture.index;
+    uint64_t lookupKey = metallicRoughnessTextureIndex << 32 || occlusionTextureIndex;
+
+    auto rmaTextureIdOpt = converterState.getRMATextureId(lookupKey);
+    if (!rmaTextureIdOpt.has_value()) {
+        auto rmaTexture = textureCollection.newTexture();
+        converterState.setRMATextureId(lookupKey, rmaTexture->textureId);
+
+        stbi_uc *metallicRoughnessImageData = nullptr;
+
+        // Metallic roughness texture
+        int32_t metallicRoughnessWidth{}, metallicRoughnessHeight{}, metallicRoughnessChannels{};
+        if (metallicRoughnessTextureIndex) {
+            auto &gltfMetallicRoughnessTexture = model.textures[metallicRoughnessTextureIndex];
+
+            metallicRoughnessImageData = ReadTextureImageData(model, metallicRoughnessTextureIndex,
+                                                              metallicRoughnessWidth, metallicRoughnessHeight,
+                                                              metallicRoughnessChannels, 3);
+            if (metallicRoughnessImageData == nullptr) {
+                RAISE_EXCEPTION(errorhandling::IllegalStateException, "Failed to load roughness-metallic texture data");
+            }
+
+            uint64_t metallicRoughnessImageDataLength =
+                    metallicRoughnessWidth * metallicRoughnessHeight * 3 * sizeof(uint8_t);
+        }
+
+        stbi_uc *occlusionImageData = nullptr;
+
+        // Occlusion texture
+        int32_t occlusionWidth{}, occlusionHeight{}, occlusionChannels{};
+        if (occlusionTextureIndex != -1) {
+            auto &gltfOcclusionTexture = model.textures[occlusionTextureIndex];
+            occlusionImageData = ReadTextureImageData(model, occlusionTextureIndex, occlusionWidth,
+                                                      occlusionHeight, occlusionChannels, 1);
+            if (occlusionImageData == nullptr) {
+                RAISE_EXCEPTION(errorhandling::IllegalStateException, "Failed to load occlusion texture data");
+            }
+            uint64_t occlusionImageDataLength = occlusionWidth * occlusionHeight * 1 * sizeof(uint8_t);
+        }
+        if (metallicRoughnessImageData != nullptr && occlusionImageData != nullptr) {
+            if (occlusionWidth != metallicRoughnessWidth || occlusionHeight != metallicRoughnessHeight) {
+                RAISE_EXCEPTION(errorhandling::IllegalStateException,
+                                "Occlusion texture dimensions do not match roughness-metallic texture dimensions");
+            }
+        } else if (metallicRoughnessImageData == nullptr && occlusionImageData == nullptr) {
+            return std::nullopt;
+        }
+
+        uint64_t rmaImageWidth{};
+        uint64_t rmaImageHeight{};
+
+        if (metallicRoughnessImageData != nullptr) {
+            rmaImageWidth = metallicRoughnessWidth;
+            rmaImageHeight = metallicRoughnessHeight;
+        } else if (occlusionImageData != nullptr) {
+            rmaImageWidth = occlusionWidth;
+            rmaImageHeight = occlusionHeight;
+        }
+
+        uint64_t rmaImageChannels = 3;
+        uint64_t rmaImageDataLength = rmaImageWidth * rmaImageHeight * rmaImageChannels * sizeof(uint8_t);
+        // (R = roughness, G = Metalness, B = Ambient Occlusion)
+        uint8_t *rmaImageData = new stbi_uc[rmaImageDataLength];
+        for (uint64_t i = 0; i < rmaImageDataLength; i++) {
+            uint64_t pixel = i / rmaImageChannels;
+            uint64_t channel = i % rmaImageChannels;
+            if (channel == 0) {
+                // Roughness is in the green channel of the metallicRoughness texture.
+                if (metallicRoughnessImageData == nullptr) {
+                    rmaImageData[i] = 0;
+                } else {
+                    rmaImageData[i] = metallicRoughnessImageData[pixel * 3 + 1];
+                }
+            } else if (channel == 1) {
+                // Metalness is in the blue channel of the metallicRoughness texture.
+                if (metallicRoughnessImageData == nullptr) {
+                    rmaImageData[i] = 0;
+                } else {
+                    rmaImageData[i] = metallicRoughnessImageData[pixel * 3 + 2];
+                }
+            } else if (channel == 2) {
+                // Ambient Occlusion is in the red channel of the occlusion texture.
+                if (occlusionImageData == nullptr) {
+                    rmaImageData[i] = 0;
+                } else {
+                    rmaImageData[i] = occlusionImageData[pixel];
+                }
+            }
+        }
+        size_t rmaCompressedImageDataLength{};
+        auto rmaCompressedImageData = JpegCompress(
+                rmaImageData, rmaImageWidth, rmaImageHeight,
+                rmaImageChannels, 50, // TODO: remove hardcoded quality
+                rmaCompressedImageDataLength
+        );
+        delete[] rmaImageData;
+        rmaTexture->width = rmaImageWidth;
+        rmaTexture->height = rmaImageHeight;
+        rmaTexture->channels = rmaImageChannels;
+        rmaTexture->bitDepth = 8;
+        rmaTexture->bufferView = DAsset::BufferView{
+                .byteOffset = 0,
+                .byteLength = rmaCompressedImageDataLength,
+                .byteStride = 0,
+                .buffer = bufferCollection.newBuffer(rmaCompressedImageData, rmaCompressedImageDataLength)
+        };
+        delete[] rmaCompressedImageData;
+        delete[] metallicRoughnessImageData;
+        delete[] occlusionImageData;
+        return rmaTexture;
+    }
+    auto rmaTextureId = rmaTextureIdOpt.value();
+    auto rmaTextureOpt = textureCollection.getTexture(rmaTextureId);
+    if (!rmaTextureOpt.has_value()) {
+        RAISE_EXCEPTION(errorhandling::IllegalStateException,
+                        "Illegal Texture collection state. Texture not found, but ConverterState entry exists");
+    }
+    return rmaTextureOpt.value();
+}
+
+std::shared_ptr<DAsset::Material>
+GetOrMakeMaterial(DAsset::Asset &asset, const tinygltf::Model &model, uint64_t materialIndex,
+                  ConverterState &converterState) {
+    auto &materialCollection = asset.materialCollection;
+
+    auto materialIdOpt = converterState.getMaterialId(materialIndex);
+    if (!materialIdOpt.has_value()) {
+        auto material = materialCollection.newMaterial();
+        auto gltfMaterial = model.materials[materialIndex];
+        auto gltfPbr = gltfMaterial.pbrMetallicRoughness;
+        material->albedoFactor = glm::vec4(gltfPbr.baseColorFactor[0], gltfPbr.baseColorFactor[1],
+                                           gltfPbr.baseColorFactor[2], gltfPbr.baseColorFactor[3]);
+        material->roughnessFactor = gltfPbr.roughnessFactor;
+        material->metalnessFactor = gltfPbr.metallicFactor;
+        material->ambientOcclusionFactor = gltfMaterial.occlusionTexture.strength;
+        material->normalScale = gltfMaterial.normalTexture.scale;
+
+        // Albedo texture
+        {
+            auto albedoTextureOpt = GetOrMakeTexture(asset, model, gltfPbr.baseColorTexture.index, converterState);
+            if (albedoTextureOpt.has_value()) {
+                material->albedoTexture = albedoTextureOpt.value();
+            }
+        }
+        // Normal texture
+        {
+            auto normalTextureOpt = GetOrMakeTexture(asset, model, gltfMaterial.normalTexture.index, converterState);
+            if (normalTextureOpt.has_value()) {
+                material->normalTexture = normalTextureOpt.value();
+            }
+        }
+        // RMA texture
+        {
+            auto rmaTextureOpt = GetOrMakeRMATexture(asset, model, gltfMaterial, converterState);
+            if (rmaTextureOpt.has_value()) {
+                material->metallicRoughnessAmbientOcclusionTexture = rmaTextureOpt.value();
+            }
+        }
+        return material;
+    }
+    auto materialId = materialIdOpt.value();
+    auto materialOpt = materialCollection.getMaterial(materialId);
+    if (!materialOpt.has_value()) {
+        RAISE_EXCEPTION(errorhandling::IllegalStateException,
+                        "Illegal material collection state. Material not found, but entry in converter state exists");
+    }
+    return *materialOpt;
+}
+
+
+DAsset::BufferView
+MakeBufferView(DAsset::BufferCollection &bufferCollection, const tinygltf::Model &model, uint64_t accessorIndex,
+               ConverterState &converterState) {
+    auto accessor = model.accessors[accessorIndex];
+    auto bufferView = model.bufferViews[accessor.bufferView];
+
+    auto dataType = GetDataType(accessor.componentType);
+    auto componentType = GetComponentType(accessor.type);
+    auto elementSize = DAsset::GetSize(dataType, componentType);
+
+    auto dAssetBuffer = bufferCollection.newBuffer(
+            &model.buffers[bufferView.buffer].data[bufferView.byteOffset + accessor.byteOffset],
+            bufferView.byteLength
+    );
+
+    return {0,
+            accessor.count * elementSize,
+            bufferView.byteStride, // TODO: un-stride array to avoid storing unreferenced data
+            dataType,
+            componentType,
+            dAssetBuffer
+    };
+}
 
 DAsset::Mesh
-FromGLTFMesh(DAsset::BufferCollection &bufferCollection, const tinygltf::Model &model, const tinygltf::Mesh &mesh) {
+FromGLTFMesh(DAsset::Asset &asset, const tinygltf::Model &model, const tinygltf::Mesh &mesh,
+             ConverterState &converterState) {
+    auto &bufferCollection = asset.bufferCollection;
+
     DAsset::Mesh dAssetMesh{};
     for (const auto &primitive: mesh.primitives) {
         DAsset::BufferView indexBufferView;
-        // Index buffer view
+
+        // TODO: Reference already existing buffer in buffer views when possible
+
+        // Create index buffer + view
         if (primitive.indices != -1) {
-            auto accessor = model.accessors[primitive.indices];
-            auto bufferView = model.bufferViews[accessor.bufferView];
-            auto dAssetBuffer = bufferCollection.buffers[bufferView.buffer];
-            auto dataType = GetDataType(accessor.componentType);
-            auto componentType = GetComponentType(accessor.type);
-            auto elementSize = DAsset::GetSize(dataType, componentType);
-            indexBufferView = DAsset::BufferView{bufferView.byteOffset + accessor.byteOffset,
-                                                 accessor.count * elementSize,
-                                                 bufferView.byteStride,
-                                                 dataType,
-                                                 componentType,
-                                                 dAssetBuffer};
+            auto accessorIndex = primitive.indices;
+            indexBufferView = MakeBufferView(bufferCollection, model, accessorIndex, converterState);
         }
+
         std::map<DAsset::AttributeType, DAsset::BufferView> attributeBufferViews{};
-        // other vertex attributes. eg. position, normal, etc.
+        // Create buffers + views for other vertex attributes. eg. position, normal, etc.
         for (auto[targetName, accessorIndex]: primitive.attributes) {
-            auto accessor = model.accessors[accessorIndex];
-            auto bufferView = model.bufferViews[accessor.bufferView];
-            auto dAssetBuffer = bufferCollection.buffers[bufferView.buffer];
             auto attributeType = GetAttributeType(targetName);
-            auto dataType = GetDataType(accessor.componentType);
-            auto componentType = GetComponentType(accessor.type);
-            auto elementSize = DAsset::GetSize(dataType, componentType);
-            attributeBufferViews[attributeType] = {bufferView.byteOffset + accessor.byteOffset,
-                                                   accessor.count * elementSize,
-                                                   bufferView.byteStride,
-                                                   dataType,
-                                                   componentType,
-                                                   dAssetBuffer
-            };
+            attributeBufferViews[attributeType] = MakeBufferView(bufferCollection, model, accessorIndex,
+                                                                 converterState);
         }
-        DAsset::MeshPart dAssetMeshPart{GetRenderMode(primitive.mode), indexBufferView, attributeBufferViews};
+        // Add Material
+        std::shared_ptr<DAsset::Material> material;
+        {
+            auto materialId = primitive.material;
+            material = GetOrMakeMaterial(asset, model, materialId, converterState);
+        }
+        DAsset::MeshPart dAssetMeshPart{GetRenderMode(primitive.mode), indexBufferView, attributeBufferViews,
+                                        material};
         dAssetMesh.meshParts.push_back(dAssetMeshPart);
     }
     return dAssetMesh;
 }
 
 DAsset::Node
-FromGLTFNode(DAsset::BufferCollection &bufferCollection, const tinygltf::Model &model, const tinygltf::Node &gltfNode) {
+FromGLTFNode(DAsset::Asset &asset, const tinygltf::Model &model, const tinygltf::Node &gltfNode,
+             ConverterState &converterState) {
+    auto bufferCollection = asset.bufferCollection;
     DAsset::Node dAssetNode{};
     dAssetNode.name = gltfNode.name;
-
     // Get translation, rotation and scale
     {
         if (gltfNode.matrix.size() == 16) {
@@ -208,36 +569,26 @@ FromGLTFNode(DAsset::BufferCollection &bufferCollection, const tinygltf::Model &
     {
         if (gltfNode.mesh >= 0) {
             const tinygltf::Mesh &gltfMesh = model.meshes[gltfNode.mesh];
-            dAssetNode.mesh = FromGLTFMesh(bufferCollection, model, gltfMesh);
+            dAssetNode.mesh = FromGLTFMesh(asset, model, gltfMesh, converterState);
         }
     }
 
     for (const auto &nodeIndex: gltfNode.children) {
         auto childGltfNode = model.nodes[nodeIndex];
-        dAssetNode.children.push_back(FromGLTFNode(bufferCollection, model, childGltfNode));
+        dAssetNode.children.push_back(FromGLTFNode(asset, model, childGltfNode, converterState));
     }
     return dAssetNode;
 }
 
-DAsset::BufferCollection FromGLTFBuffers(const tinygltf::Model &model) {
-    DAsset::BufferCollection bufferCollection{};
-    uint64_t bufferIndex = 0;
-    for (const auto &buffer: model.buffers) {
-        bufferCollection.buffers.push_back(
-                std::make_shared<DAsset::Buffer>(bufferIndex, buffer.data)
-        );
-        bufferIndex++;
-    }
-    return bufferCollection;
-}
-
 DAsset::Asset FromTinyGLTF(const tinygltf::Model &model) {
+    ConverterState converterState{};
     DAsset::Asset asset{};
     if (model.nodes.empty()) {
         return asset;
     }
-    auto bufferCollection = FromGLTFBuffers(model);
-    asset.bufferCollection = bufferCollection;
+    asset.bufferCollection = {};
+    asset.textureCollection = {};
+    asset.materialCollection = {};
     DAsset::Node rootNode{
             .name = "synthetic_root",
             .translation = glm::vec3(0.0f, 0.0f, 0.0f),
@@ -247,7 +598,8 @@ DAsset::Asset FromTinyGLTF(const tinygltf::Model &model) {
     auto gltfRootNodes = model.scenes[0].nodes;
     for (const auto &gltfRootNode: gltfRootNodes) {
         auto gltfNode = model.nodes[gltfRootNode];
-        rootNode.children.push_back(FromGLTFNode(bufferCollection, model, gltfNode));
+        // Adds to bufferCollection, textureCollection and materialCollection
+        rootNode.children.push_back(FromGLTFNode(asset, model, gltfNode, converterState));
     }
     asset.rootNode = rootNode;
     return asset;

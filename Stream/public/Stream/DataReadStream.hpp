@@ -5,6 +5,8 @@
 
 namespace Stream {
 
+#define READ_BUFFER_SIZE 8388608
+
     class DataReadStream {
 
     public:

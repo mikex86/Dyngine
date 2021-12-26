@@ -12,10 +12,10 @@ namespace Stream {
             RAISE_EXCEPTION(errorhandling::IllegalStateException,
                             "Failed to create ZstdInflateStream: ZSTD_createDCtx returned null");
         }
-        inputBufferCapacity = ZSTD_DStreamInSize();
+        inputBufferCapacity = READ_BUFFER_SIZE;
         inputBuffer = new uint8_t[inputBufferCapacity];
 
-        outputBufferCapacity = ZSTD_DStreamOutSize();
+        outputBufferCapacity = READ_BUFFER_SIZE;
         outputBuffer = new uint8_t[outputBufferCapacity];
     }
 

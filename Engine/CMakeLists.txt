@@ -27,7 +27,8 @@ target_link_libraries(Dyngine_Engine PRIVATE Dyngine_Utils)
 target_link_libraries(Dyngine_Engine PRIVATE Dyngine_Dpac)
 target_link_libraries(Dyngine_Engine PRIVATE Dyngine_DShader)
 target_link_libraries(Dyngine_Engine PRIVATE Dyngine_DAsset)
-target_link_libraries(Dyngine_Engine PUBLIC glm)
+target_link_libraries(Dyngine_Engine PRIVATE glm)
+target_link_libraries(Dyngine_Engine PRIVATE STB_LIBRARY)
 
 # Build Engine Resources
 

@@ -1,4 +1,4 @@
-#include "DAsset/Asset.hpp"
+#include <DAsset/Asset.hpp>
 #include "ErrorHandling/IllegalArgumentException.hpp"
 #include <ErrorHandling/IllegalStateException.hpp>
 #include <optional>
@@ -12,39 +12,55 @@ void WriteBufferView(const DAsset::BufferCollection &bufferCollection, const DAs
     stream->writeInt64(bufferView.byteStride);
     stream->writeInt8(static_cast<int8_t>(bufferView.dataType));
     stream->writeInt8(static_cast<int8_t>(bufferView.componentType));
-    auto indexOpt = bufferCollection.find(bufferView.buffer);
-    if (!indexOpt) {
+    auto bufferIdOpt = bufferCollection.find(*bufferView.buffer);
+    if (!bufferIdOpt.has_value()) {
         RAISE_EXCEPTION(errorhandling::IllegalStateException, "BufferView references unknown buffer");
     }
-    stream->writeInt64(indexOpt.value());
+    stream->writeInt64(bufferIdOpt.value());
 }
 
-void WriteMeshPart(const DAsset::BufferCollection &bufferCollection, const DAsset::MeshPart &meshPart,
-                   const std::unique_ptr<Stream::DataWriteStream> &stream) {
+void
+WriteMeshPart(const DAsset::BufferCollection &bufferCollection, const DAsset::MaterialCollection &materialCollection,
+              const DAsset::MeshPart &meshPart, const std::unique_ptr<Stream::DataWriteStream> &stream) {
+
+    // Write render mode
     stream->writeInt8(static_cast<int8_t>(meshPart.renderMode));
+
+    // Write optional index buffer view
     if (meshPart.indexBufferView.has_value()) {
         stream->writeInt8(1);
         WriteBufferView(bufferCollection, meshPart.indexBufferView.value(), stream);
     } else {
         stream->writeInt8(0);
     }
+
+    // Write attribute buffer views
     stream->writeInt64(meshPart.attributeBufferViews.size());
     for (const auto &entry: meshPart.attributeBufferViews) {
         stream->writeInt8(static_cast<int8_t>(entry.first));
         WriteBufferView(bufferCollection, entry.second, stream);
     }
-}
 
-void WriteMesh(const DAsset::BufferCollection &bufferCollection, const DAsset::Mesh &mesh,
-               const std::unique_ptr<Stream::DataWriteStream> &stream) {
-    stream->writeInt64(mesh.meshParts.size());
-    for (const auto &meshPart: mesh.meshParts) {
-        WriteMeshPart(bufferCollection, meshPart, stream);
+    // Write material reference
+    {
+        auto materialIdOpt = materialCollection.find(*meshPart.material);
+        if (!materialIdOpt.has_value()) {
+            RAISE_EXCEPTION(errorhandling::IllegalStateException, "Material references unknown material");
+        }
+        stream->writeInt64(materialIdOpt.value());
     }
 }
 
-void WriteNode(const DAsset::BufferCollection &bufferCollection, const DAsset::Node &node,
-               const std::unique_ptr<Stream::DataWriteStream> &stream) {
+void WriteMesh(const DAsset::BufferCollection &bufferCollection, const DAsset::MaterialCollection &materialCollection,
+               const DAsset::Mesh &mesh, const std::unique_ptr<Stream::DataWriteStream> &stream) {
+    stream->writeInt64(mesh.meshParts.size());
+    for (const auto &meshPart: mesh.meshParts) {
+        WriteMeshPart(bufferCollection, materialCollection, meshPart, stream);
+    }
+}
+
+void WriteNode(const DAsset::BufferCollection &bufferCollection, const DAsset::MaterialCollection &materialCollection,
+               const DAsset::Node &node, const std::unique_ptr<Stream::DataWriteStream> &stream) {
     stream->writeFixedString(node.name, MAX_NODE_NAME_LENGTH);
     stream->writeFloat32(node.translation.x);
     stream->writeFloat32(node.translation.y);
@@ -56,10 +72,10 @@ void WriteNode(const DAsset::BufferCollection &bufferCollection, const DAsset::N
     stream->writeFloat32(node.scale.x);
     stream->writeFloat32(node.scale.y);
     stream->writeFloat32(node.scale.z);
-    WriteMesh(bufferCollection, node.mesh, stream);
+    WriteMesh(bufferCollection, materialCollection, node.mesh, stream);
     stream->writeInt64(node.children.size());
     for (const auto &child: node.children) {
-        WriteNode(bufferCollection, child, stream);
+        WriteNode(bufferCollection, materialCollection, child, stream);
     }
 }
 
@@ -67,14 +83,68 @@ void WriteBufferCollection(const DAsset::BufferCollection &collection,
                            const std::unique_ptr<Stream::DataWriteStream> &stream) {
     stream->writeInt64(collection.buffers.size());
     for (const auto &buffer: collection.buffers) {
+        stream->writeInt64(buffer->bufferId);
         stream->writeInt64(buffer->data.size());
         stream->writeBuffer(buffer->data.data(), buffer->data.size());
     }
 }
 
+void WriteTextureCollection(const DAsset::BufferCollection &bufferCollection,
+                            const DAsset::TextureCollection &textureCollection,
+                            const std::unique_ptr<Stream::DataWriteStream> &stream) {
+    stream->writeInt64(textureCollection.textures.size());
+    for (const auto &texture: textureCollection.textures) {
+        stream->writeInt64(texture->textureId);
+        stream->writeInt32(texture->width);
+        stream->writeInt32(texture->height);
+        stream->writeInt32(texture->channels);
+        stream->writeInt32(texture->bitDepth);
+        stream->writeInt8(texture->textureFilter);
+        stream->writeInt8(texture->addressMode);
+        WriteBufferView(bufferCollection, texture->bufferView, stream);
+    }
+}
+
+void WriteOptionalTextureReference(std::optional<std::shared_ptr<DAsset::Texture>> optionalTexture,
+                                   const DAsset::TextureCollection &textureCollection,
+                                   const std::unique_ptr<Stream::DataWriteStream> &stream) {
+    if (optionalTexture.has_value()) {
+        stream->writeInt8(1);
+        auto textureIdOpt = textureCollection.find(*optionalTexture.value());
+        if (!textureIdOpt.has_value()) {
+            RAISE_EXCEPTION(errorhandling::IllegalStateException, "Unknown texture referenced");
+        }
+        stream->writeInt64(textureIdOpt.value());
+    } else {
+        stream->writeInt8(0);
+    }
+}
+
+void WriteMaterialCollection(const DAsset::MaterialCollection &materialCollection,
+                             const DAsset::TextureCollection &textureCollection,
+                             const std::unique_ptr<Stream::DataWriteStream> &stream) {
+    stream->writeInt64(materialCollection.materials.size());
+    for (const auto &material: materialCollection.materials) {
+        stream->writeInt64(material->materialId);
+        stream->writeFloat32(material->albedoFactor.x);
+        stream->writeFloat32(material->albedoFactor.y);
+        stream->writeFloat32(material->albedoFactor.z);
+        stream->writeFloat32(material->albedoFactor.w);
+        stream->writeFloat32(material->roughnessFactor);
+        stream->writeFloat32(material->metalnessFactor);
+        stream->writeFloat32(material->ambientOcclusionFactor);
+        stream->writeFloat32(material->normalScale);
+        WriteOptionalTextureReference(material->albedoTexture, textureCollection, stream);
+        WriteOptionalTextureReference(material->normalTexture, textureCollection, stream);
+        WriteOptionalTextureReference(material->metallicRoughnessAmbientOcclusionTexture, textureCollection, stream);
+    }
+}
+
 void DAsset::WriteAsset(const DAsset::Asset &asset, const std::unique_ptr<Stream::DataWriteStream> &stream) {
     WriteBufferCollection(asset.bufferCollection, stream);
-    WriteNode(asset.bufferCollection, asset.rootNode, stream);
+    WriteTextureCollection(asset.bufferCollection, asset.textureCollection, stream);
+    WriteMaterialCollection(asset.materialCollection, asset.textureCollection, stream);
+    WriteNode(asset.bufferCollection, asset.materialCollection, asset.rootNode, stream);
 }
 
 DAsset::BufferView
@@ -90,31 +160,46 @@ ReadBufferView(const DAsset::BufferCollection &bufferCollection,
     if (bufferIndex >= bufferCollection.buffers.size()) {
         RAISE_EXCEPTION(errorhandling::IllegalStateException, "Mesh references unknown buffer");
     }
-    auto buffer = bufferCollection.getBuffer(bufferIndex);
+    auto bufferOpt = bufferCollection.getBuffer(bufferIndex);
+    if (!bufferOpt.has_value()) {
+        RAISE_EXCEPTION(errorhandling::IllegalStateException, "Mesh references unknown buffer");
+    }
+    auto buffer = bufferOpt.value();
     bufferView.buffer = buffer;
     return bufferView;
 }
 
 DAsset::Mesh
-ReadMesh(const DAsset::BufferCollection &bufferCollection, const std::unique_ptr<Stream::DataReadStream> &stream) {
+ReadMesh(const DAsset::BufferCollection &bufferCollection, const DAsset::MaterialCollection &materialCollection,
+         const std::unique_ptr<Stream::DataReadStream> &stream) {
     DAsset::Mesh mesh{};
     mesh.meshParts.resize(stream->readInt64());
     for (auto &meshPart: mesh.meshParts) {
         meshPart.renderMode = static_cast<DAsset::RenderMode>(stream->readInt8());
+        // Read optional index buffer view
         if (stream->readUint8() == 1) {
             meshPart.indexBufferView = ReadBufferView(bufferCollection, stream);
         }
+        // Read attribute buffer views
         auto nAttributes = stream->readInt64();
         for (uint64_t i = 0; i < nAttributes; ++i) {
             auto attributeType = static_cast<DAsset::AttributeType>(stream->readInt8());
             meshPart.attributeBufferViews[attributeType] = ReadBufferView(bufferCollection, stream);
         }
+        // Read material reference
+        auto materialIndex = stream->readInt64();
+        auto materialOpt = materialCollection.getMaterial(materialIndex);
+        if (!materialOpt.has_value()) {
+            RAISE_EXCEPTION(errorhandling::IllegalStateException, "MeshPart references unknown material");
+        }
+        meshPart.material = materialOpt.value();
     }
     return mesh;
 }
 
 DAsset::Node
-ReadNode(const DAsset::BufferCollection &bufferCollection, const std::unique_ptr<Stream::DataReadStream> &stream) {
+ReadNode(const DAsset::BufferCollection &bufferCollection, const DAsset::MaterialCollection &materialCollection,
+         const std::unique_ptr<Stream::DataReadStream> &stream) {
     DAsset::Node node{};
     node.name = stream->readFixedString(MAX_NODE_NAME_LENGTH);
     node.translation.x = stream->readFloat32();
@@ -127,10 +212,10 @@ ReadNode(const DAsset::BufferCollection &bufferCollection, const std::unique_ptr
     node.scale.x = stream->readFloat32();
     node.scale.y = stream->readFloat32();
     node.scale.z = stream->readFloat32();
-    node.mesh = ReadMesh(bufferCollection, stream);
+    node.mesh = ReadMesh(bufferCollection, materialCollection, stream);
     auto nChildren = stream->readInt64();
     for (uint64_t i = 0; i < nChildren; ++i) {
-        node.children.push_back(ReadNode(bufferCollection, stream));
+        node.children.push_back(ReadNode(bufferCollection, materialCollection, stream));
     }
     return node;
 }
@@ -140,19 +225,90 @@ DAsset::BufferCollection ReadBufferCollection(const std::unique_ptr<Stream::Data
     DAsset::BufferCollection collection;
     collection.buffers = std::vector<std::shared_ptr<DAsset::Buffer>>(bufferCount);
     for (uint64_t bufferIndex = 0u; bufferIndex < bufferCount; ++bufferIndex) {
+        auto bufferId = stream->readInt64();
         auto bufferSize = stream->readInt64();
         auto data = std::vector<uint8_t>(bufferSize);
         stream->read(data.data(), bufferSize);
-        collection.buffers[bufferIndex] = std::make_shared<DAsset::Buffer>(bufferIndex, data);
+        collection.buffers[bufferIndex] = std::make_shared<DAsset::Buffer>(bufferId, data);
     }
     return collection;
+}
+
+DAsset::TextureCollection ReadTextureCollection(const DAsset::BufferCollection &bufferCollection,
+                                                const std::unique_ptr<Stream::DataReadStream> &stream) {
+    auto textureCount = stream->readInt64();
+    DAsset::TextureCollection textureCollection{};
+    textureCollection.textures = std::vector<std::shared_ptr<DAsset::Texture>>(textureCount);
+    for (uint64_t textureIndex = 0u; textureIndex < textureCount; ++textureIndex) {
+        auto textureId = stream->readInt64();
+        auto width = stream->readInt32();
+        auto height = stream->readInt32();
+        auto channels = stream->readInt32();
+        auto bitDepth = stream->readInt32();
+        auto textureSamplerFilter = static_cast<DAsset::TextureFilter>(stream->readInt8());
+        auto textureAddressMode = static_cast<DAsset::TextureAddressMode>(stream->readInt8());
+        auto dataSize = width * height * channels * (bitDepth / 8);
+        auto bufferView = ReadBufferView(bufferCollection, stream);
+        auto texture = std::make_shared<DAsset::Texture>(textureId);
+        texture->width = width;
+        texture->height = height;
+        texture->channels = channels;
+        texture->bitDepth = bitDepth;
+        texture->bufferView = bufferView;
+        texture->textureFilter = textureSamplerFilter;
+        texture->addressMode = textureAddressMode;
+        textureCollection.textures[textureIndex] = texture;
+    }
+    return textureCollection;
+}
+
+std::optional<std::shared_ptr<DAsset::Texture>> ReadOptionalTexture(const DAsset::TextureCollection &textureCollection,
+                                                                    const std::unique_ptr<Stream::DataReadStream> &stream) {
+    auto optionalState = stream->readInt8();
+    if (optionalState == 0) {
+        return std::nullopt;
+    }
+    auto textureId = stream->readInt64();
+    auto textureOpt = textureCollection.getTexture(textureId);
+    if (!textureOpt.has_value()) {
+        RAISE_EXCEPTION(errorhandling::IllegalStateException, "Texture references unknown texture");
+    }
+    return textureOpt;
+}
+
+DAsset::MaterialCollection ReadMaterialCollection(const DAsset::TextureCollection &textureCollection,
+                                                  const std::unique_ptr<Stream::DataReadStream> &stream) {
+    auto materialCount = stream->readInt64();
+    DAsset::MaterialCollection materialCollection{};
+    materialCollection.materials = std::vector<std::shared_ptr<DAsset::Material>>(materialCount);
+    for (uint64_t materialIndex = 0u; materialIndex < materialCount; ++materialIndex) {
+        auto materialId = stream->readInt64();
+
+        auto material = std::make_shared<DAsset::Material>(materialId);
+        material->albedoFactor =
+                {stream->readFloat32(), stream->readFloat32(), stream->readFloat32(), stream->readFloat32()};
+        material->roughnessFactor = stream->readFloat32();
+        material->metalnessFactor = stream->readFloat32();
+        material->ambientOcclusionFactor = stream->readFloat32();
+        material->normalScale = stream->readFloat32();
+
+        material->albedoTexture = ReadOptionalTexture(textureCollection, stream);
+        material->normalTexture = ReadOptionalTexture(textureCollection, stream);
+        material->metallicRoughnessAmbientOcclusionTexture = ReadOptionalTexture(textureCollection, stream);
+        materialCollection.materials[materialIndex] = material;
+    }
+    return materialCollection;
 }
 
 DAsset::Asset DAsset::ReadAsset(const std::unique_ptr<Stream::DataReadStream> &stream) {
     DAsset::Asset asset{};
     auto bufferCollection = ReadBufferCollection(stream);
+    auto textureCollection = ReadTextureCollection(bufferCollection, stream);
+    auto materialCollection = ReadMaterialCollection(textureCollection, stream);
     asset.bufferCollection = bufferCollection;
-    asset.rootNode = ReadNode(bufferCollection, stream);
+    asset.textureCollection = textureCollection;
+    asset.materialCollection = materialCollection;
+    asset.rootNode = ReadNode(bufferCollection, materialCollection, stream);
     return asset;
 }
 
@@ -288,22 +444,111 @@ uint64_t DAsset::GetSize(DAsset::DataType dataType, DAsset::ComponentType compon
     return stride * componentCount;
 }
 
-std::optional<uint64_t> DAsset::BufferCollection::find(const std::shared_ptr<DAsset::Buffer> &buffer) const {
+std::string DAsset::GetTextureAddressModeName(DAsset::TextureAddressMode mode) {
+    switch (mode) {
+        case TextureAddressMode::REPEAT:
+            return "REPEAT";
+        case TextureAddressMode::MIRROR:
+            return "MIRROR";
+        case TextureAddressMode::CLAMP:
+            return "CLAMP";
+        case TextureAddressMode::BORDER:
+            return "BORDER";
+        case TextureAddressMode::MIRROR_ONCE:
+            return "MIRROR_ONCE";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+std::string DAsset::GetTextureFilterName(DAsset::TextureFilter filter) {
+    switch (filter) {
+        case TextureFilter::LINEAR:
+            return "LINEAR";
+        case TextureFilter::NEAREST:
+            return "NEAREST";
+    }
+}
+
+std::optional<uint64_t> DAsset::BufferCollection::find(const DAsset::Buffer &buffer) const {
     for (uint64_t i = 0; i < buffers.size(); i++) {
-        if (buffers[i]->bufferIndex == buffer->bufferIndex) {
+        if (buffers[i]->bufferId == buffer.bufferId) {
             return i;
         }
     }
     return std::nullopt;
 }
 
-std::shared_ptr<DAsset::Buffer> DAsset::BufferCollection::getBuffer(uint64_t index) const {
+std::optional<std::shared_ptr<DAsset::Buffer>> DAsset::BufferCollection::getBuffer(uint64_t bufferId) const {
     for (auto &buffer: buffers) {
-        if (buffer->bufferIndex == index) {
+        if (buffer->bufferId == bufferId) {
             return buffer;
         }
     }
-    return nullptr;
+    return std::nullopt;
 }
 
-DAsset::Buffer::Buffer(uint64_t bufferIndex, const std::vector<uint8_t> &data) : bufferIndex(bufferIndex), data(data) {}
+std::shared_ptr<DAsset::Buffer> DAsset::BufferCollection::newBuffer(const uint8_t *data, size_t length) {
+    std::vector<uint8_t> bufferData(length);
+    std::copy(data, data + length, bufferData.begin());
+    auto buffer = std::make_shared<DAsset::Buffer>(buffers.size(), bufferData);
+    buffers.push_back(buffer);
+    return buffer;
+}
+
+DAsset::Buffer::Buffer(uint64_t bufferId, const std::vector<uint8_t> &data) : bufferId(bufferId), data(data) {
+}
+
+std::optional<std::shared_ptr<DAsset::Material>> DAsset::MaterialCollection::getMaterial(uint64_t materialId) const {
+    for (auto &material: materials) {
+        if (material->materialId == materialId) {
+            return material;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<uint64_t> DAsset::MaterialCollection::find(const DAsset::Material &material) const {
+    for (uint64_t i = 0; i < materials.size(); i++) {
+        if (materials[i]->materialId == material.materialId) {
+            return i;
+        }
+    }
+    return std::nullopt;
+}
+
+std::shared_ptr<DAsset::Material> DAsset::MaterialCollection::newMaterial() {
+    auto material = std::make_shared<DAsset::Material>(materials.size());
+    materials.push_back(material);
+    return material;
+}
+
+DAsset::Material::Material(uint64_t materialId) : materialId(materialId) {
+}
+
+std::optional<std::shared_ptr<DAsset::Texture>> DAsset::TextureCollection::getTexture(uint64_t textureId) const {
+    for (auto &texture: textures) {
+        if (texture->textureId == textureId) {
+            return texture;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<uint64_t> DAsset::TextureCollection::find(const DAsset::Texture &texture) const {
+    for (uint64_t i = 0; i < textures.size(); i++) {
+        if (textures[i]->textureId == texture.textureId) {
+            return i;
+        }
+    }
+    return std::nullopt;
+}
+
+std::shared_ptr<DAsset::Texture> DAsset::TextureCollection::newTexture() {
+    auto texture = std::make_shared<DAsset::Texture>(textures.size());
+    textures.push_back(texture);
+    return texture;
+}
+
+DAsset::Texture::Texture(uint64_t textureId) : textureId(textureId) {
+}
