@@ -1,6 +1,8 @@
 #define TINYGLTF_IMPLEMENTATION
+
 #include <stb_image.h>
 #include <stb_image_write.h>
+
 #undef STB_IMAGE_IMPLEMENTATION
 #undef STB_IMAGE_WRITE_IMPLEMENTATION
 
@@ -199,8 +201,9 @@ stbi_uc *ReadTextureImageData(const tinygltf::Model &model, uint64_t textureInde
     if (gltfBufferView.byteStride != 0) {
         RAISE_EXCEPTION(errorhandling::IllegalStateException, "Stride not supported on texture buffers");
     }
+    channels = requiredComp;
     return stbi_load_from_memory(&bufferData[bufferOffset], bufferSize,
-                                 &width, &height, &channels,
+                                 &width, &height, nullptr,
                                  requiredComp);
 }
 
@@ -239,6 +242,47 @@ uint8_t *JpegCompress(const uint8_t *imageData, uint32_t width, uint32_t height,
     return context.buffer;
 }
 
+DAsset::SamplerFilter GetTextureFilter(int gltfFilter) {
+    switch (gltfFilter) {
+        case TINYGLTF_TEXTURE_FILTER_NEAREST:
+        case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
+        case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
+            return DAsset::SamplerFilter::NEAREST;
+        case TINYGLTF_TEXTURE_FILTER_LINEAR:
+        case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
+        case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
+            return DAsset::SamplerFilter::LINEAR;
+        default:
+            RAISE_EXCEPTION(errorhandling::IllegalStateException, "Unknown gltf filter: " + std::to_string(gltfFilter));
+    }
+}
+
+DAsset::SamplerFilter GetMipmapFilter(int gltfFilter) {
+    switch (gltfFilter) {
+        case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
+        case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
+            return DAsset::SamplerFilter::NEAREST;
+        case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
+        case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
+            return DAsset::SamplerFilter::LINEAR;
+        default:
+            return DAsset::LINEAR;
+    }
+}
+
+DAsset::SamplerAddressMode GetAddressMode(int gltfWrap) {
+    switch (gltfWrap) {
+        case TINYGLTF_TEXTURE_WRAP_REPEAT:
+            return DAsset::SamplerAddressMode::REPEAT;
+        case TINYGLTF_TEXTURE_WRAP_CLAMP_TO_EDGE:
+            return DAsset::SamplerAddressMode::CLAMP;
+        case TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT:
+            return DAsset::SamplerAddressMode::REPEAT;
+        default:
+            RAISE_EXCEPTION(errorhandling::IllegalStateException, "Unknown gltf wrap: " + std::to_string(gltfWrap));
+    }
+}
+
 std::optional<std::shared_ptr<DAsset::Texture>>
 GetOrMakeTexture(DAsset::Asset &asset, const tinygltf::Model &model, uint64_t textureIndex,
                  ConverterState &converterState) {
@@ -252,8 +296,21 @@ GetOrMakeTexture(DAsset::Asset &asset, const tinygltf::Model &model, uint64_t te
         auto texture = textureCollection.newTexture();
         converterState.setTextureId(textureIndex, texture->textureId);
 
+        // TODO: Support other formats than jpeg
+
+        auto &gltfTexture = model.textures[textureIndex];
+        auto sampler = model.samplers[gltfTexture.sampler];
+
+        texture->addressModeU = GetAddressMode(sampler.wrapS);
+        texture->addressModeV = GetAddressMode(sampler.wrapT);
+        texture->addressModeW = DAsset::SamplerAddressMode::CLAMP;
+
+        texture->minFilter = GetTextureFilter(sampler.minFilter);
+        texture->magFilter = GetTextureFilter(sampler.magFilter);
+        texture->mipMapFilter = GetMipmapFilter(sampler.magFilter);
+
         stbi_uc *imageData = ReadTextureImageData(model, textureIndex, texture->width, texture->height,
-                                                  texture->channels, STBI_rgb_alpha);
+                                                  texture->channels, STBI_rgb);
         texture->bitDepth = 8;
         if (imageData == nullptr) {
             RAISE_EXCEPTION(errorhandling::IllegalStateException, "Failed to load texture data");
@@ -265,7 +322,7 @@ GetOrMakeTexture(DAsset::Asset &asset, const tinygltf::Model &model, uint64_t te
         size_t compressedImageDataLength{};
         auto compressedImageData = JpegCompress(
                 imageData, imageWidth, imageHeight,
-                imageChannels, 50, // TODO: remove hardcoded quality
+                imageChannels, 80, // TODO: remove hardcoded quality
                 compressedImageDataLength
         );
         delete[] imageData;
@@ -303,14 +360,11 @@ GetOrMakeRMATexture(DAsset::Asset &asset, const tinygltf::Model &model, const ti
 
     auto rmaTextureIdOpt = converterState.getRMATextureId(lookupKey);
     if (!rmaTextureIdOpt.has_value()) {
-        auto rmaTexture = textureCollection.newTexture();
-        converterState.setRMATextureId(lookupKey, rmaTexture->textureId);
-
         stbi_uc *metallicRoughnessImageData = nullptr;
 
         // Metallic roughness texture
         int32_t metallicRoughnessWidth{}, metallicRoughnessHeight{}, metallicRoughnessChannels{};
-        if (metallicRoughnessTextureIndex) {
+        if (metallicRoughnessTextureIndex != -1) {
             auto &gltfMetallicRoughnessTexture = model.textures[metallicRoughnessTextureIndex];
 
             metallicRoughnessImageData = ReadTextureImageData(model, metallicRoughnessTextureIndex,
@@ -394,10 +448,22 @@ GetOrMakeRMATexture(DAsset::Asset &asset, const tinygltf::Model &model, const ti
                 rmaCompressedImageDataLength
         );
         delete[] rmaImageData;
+
+        auto rmaTexture = textureCollection.newTexture();
+        converterState.setRMATextureId(lookupKey, rmaTexture->textureId);
         rmaTexture->width = rmaImageWidth;
         rmaTexture->height = rmaImageHeight;
         rmaTexture->channels = rmaImageChannels;
         rmaTexture->bitDepth = 8;
+
+        rmaTexture->addressModeU = DAsset::CLAMP;
+        rmaTexture->addressModeV = DAsset::CLAMP;
+        rmaTexture->addressModeW = DAsset::CLAMP;
+
+        rmaTexture->minFilter = DAsset::LINEAR;
+        rmaTexture->magFilter = DAsset::LINEAR;
+        rmaTexture->mipMapFilter = DAsset::LINEAR;
+
         rmaTexture->bufferView = DAsset::BufferView{
                 .byteOffset = 0,
                 .byteLength = rmaCompressedImageDataLength,

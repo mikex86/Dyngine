@@ -58,11 +58,11 @@ namespace DAsset {
         std::shared_ptr<Buffer> buffer;
     };
 
-    enum TextureFilter {
+    enum SamplerFilter {
         NEAREST, LINEAR
     };
 
-    enum TextureAddressMode {
+    enum SamplerAddressMode {
         REPEAT, MIRROR, CLAMP, BORDER, MIRROR_ONCE
     };
 
@@ -71,8 +71,12 @@ namespace DAsset {
         int32_t width, height;
         int32_t channels;
         uint32_t bitDepth;
-        TextureFilter textureFilter = TextureFilter::LINEAR;
-        TextureAddressMode addressMode = TextureAddressMode::REPEAT;
+        SamplerFilter minFilter;
+        SamplerFilter magFilter;
+        SamplerFilter mipMapFilter;
+        SamplerAddressMode addressModeU;
+        SamplerAddressMode addressModeV;
+        SamplerAddressMode addressModeW;
 
         Texture(uint64_t textureId);
 
@@ -176,7 +180,7 @@ namespace DAsset {
 
     uint64_t GetSize(DataType dataType, ComponentType componentType);
 
-    std::string GetTextureAddressModeName(TextureAddressMode mode);
+    std::string GetTextureAddressModeName(SamplerAddressMode mode);
 
-    std::string GetTextureFilterName(TextureFilter filter);
+    std::string GetTextureFilterName(SamplerFilter filter);
 }

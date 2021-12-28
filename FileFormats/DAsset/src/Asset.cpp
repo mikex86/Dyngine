@@ -99,8 +99,12 @@ void WriteTextureCollection(const DAsset::BufferCollection &bufferCollection,
         stream->writeInt32(texture->height);
         stream->writeInt32(texture->channels);
         stream->writeInt32(texture->bitDepth);
-        stream->writeInt8(texture->textureFilter);
-        stream->writeInt8(texture->addressMode);
+        stream->writeInt8(texture->minFilter);
+        stream->writeInt8(texture->magFilter);
+        stream->writeInt8(texture->mipMapFilter);
+        stream->writeInt8(texture->addressModeU);
+        stream->writeInt8(texture->addressModeV);
+        stream->writeInt8(texture->addressModeW);
         WriteBufferView(bufferCollection, texture->bufferView, stream);
     }
 }
@@ -245,8 +249,14 @@ DAsset::TextureCollection ReadTextureCollection(const DAsset::BufferCollection &
         auto height = stream->readInt32();
         auto channels = stream->readInt32();
         auto bitDepth = stream->readInt32();
-        auto textureSamplerFilter = static_cast<DAsset::TextureFilter>(stream->readInt8());
-        auto textureAddressMode = static_cast<DAsset::TextureAddressMode>(stream->readInt8());
+        auto minFilter = static_cast<DAsset::SamplerFilter>(stream->readInt8());
+        auto magFilter = static_cast<DAsset::SamplerFilter>(stream->readInt8());
+        auto mipMapFilter = static_cast<DAsset::SamplerFilter>(stream->readInt8());
+
+        auto addressModeU = static_cast<DAsset::SamplerAddressMode>(stream->readInt8());
+        auto addressModeV = static_cast<DAsset::SamplerAddressMode>(stream->readInt8());
+        auto addressModeW = static_cast<DAsset::SamplerAddressMode>(stream->readInt8());
+
         auto dataSize = width * height * channels * (bitDepth / 8);
         auto bufferView = ReadBufferView(bufferCollection, stream);
         auto texture = std::make_shared<DAsset::Texture>(textureId);
@@ -255,8 +265,12 @@ DAsset::TextureCollection ReadTextureCollection(const DAsset::BufferCollection &
         texture->channels = channels;
         texture->bitDepth = bitDepth;
         texture->bufferView = bufferView;
-        texture->textureFilter = textureSamplerFilter;
-        texture->addressMode = textureAddressMode;
+        texture->minFilter = minFilter;
+        texture->magFilter = magFilter;
+        texture->mipMapFilter = mipMapFilter;
+        texture->addressModeU = addressModeU;
+        texture->addressModeV = addressModeV;
+        texture->addressModeW = addressModeW;
         textureCollection.textures[textureIndex] = texture;
     }
     return textureCollection;
@@ -444,29 +458,31 @@ uint64_t DAsset::GetSize(DAsset::DataType dataType, DAsset::ComponentType compon
     return stride * componentCount;
 }
 
-std::string DAsset::GetTextureAddressModeName(DAsset::TextureAddressMode mode) {
+std::string DAsset::GetTextureAddressModeName(DAsset::SamplerAddressMode mode) {
     switch (mode) {
-        case TextureAddressMode::REPEAT:
+        case SamplerAddressMode::REPEAT:
             return "REPEAT";
-        case TextureAddressMode::MIRROR:
+        case SamplerAddressMode::MIRROR:
             return "MIRROR";
-        case TextureAddressMode::CLAMP:
+        case SamplerAddressMode::CLAMP:
             return "CLAMP";
-        case TextureAddressMode::BORDER:
+        case SamplerAddressMode::BORDER:
             return "BORDER";
-        case TextureAddressMode::MIRROR_ONCE:
+        case SamplerAddressMode::MIRROR_ONCE:
             return "MIRROR_ONCE";
         default:
             return "UNKNOWN";
     }
 }
 
-std::string DAsset::GetTextureFilterName(DAsset::TextureFilter filter) {
+std::string DAsset::GetTextureFilterName(DAsset::SamplerFilter filter) {
     switch (filter) {
-        case TextureFilter::LINEAR:
+        case SamplerFilter::LINEAR:
             return "LINEAR";
-        case TextureFilter::NEAREST:
+        case SamplerFilter::NEAREST:
             return "NEAREST";
+        default:
+            return "UNKNOWN";
     }
 }
 

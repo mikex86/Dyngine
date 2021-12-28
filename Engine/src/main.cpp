@@ -4,11 +4,13 @@
 #include <LLGL/Utility.h>
 #include <Dpac/Dpac.hpp>
 #include "Rendering/Shader/ShaderUtil.hpp"
-#include "Rendering/Camera/PerspectiveCamera.hpp"
-#include "Rendering/Camera/Controller/FlyingPerspectiveCameraController.hpp"
-#include "Rendering/Asset/AssetLoader.hpp"
+#include "Rendering/Scene/Camera/PerspectiveCamera.hpp"
+#include "Rendering/Scene/Camera/Controller/FlyingPerspectiveCameraController.hpp"
+#include "Rendering/Scene/Asset/AssetLoader.hpp"
 #include "Rendering/Shader/ShaderCache.hpp"
-#include "Rendering/Asset/AssetRenderer.hpp"
+#include "Rendering/Scene/Asset/AssetRenderer.hpp"
+#include "Rendering/Scene/Scene.hpp"
+#include "Rendering/Scene/SceneRenderer.hpp"
 
 std::unique_ptr<LLGL::RenderSystem> setupRenderSystem() {
     LLGL::RenderSystemDescriptor renderSystemDescriptor{};
@@ -41,9 +43,15 @@ void RunEngine() {
     std::shared_ptr<LLGL::RenderSystem> renderSystem = setupRenderSystem();
 
     // Create render context
-    LLGL::RenderContextDescriptor contextDescriptor{};
-    contextDescriptor.videoMode.resolution = {800, 600};
-    contextDescriptor.vsync.enabled = false;
+    LLGL::RenderContextDescriptor contextDescriptor{
+            .vsync = {
+                    .enabled = false,
+            },
+            .samples = 4,
+            .videoMode = {
+                    .resolution = {800, 600}
+            },
+    };
 
     auto input = std::make_shared<LLGL::Input>();
 
@@ -65,18 +73,23 @@ void RunEngine() {
 
     auto aspectRatio = static_cast<float>(windowSize.width) / static_cast<float>(windowSize.height);
 
-    PerspectiveCamera camera(70, aspectRatio, 0.1f,
+    PerspectiveCamera camera(70, aspectRatio, 0.001f,
                              100.0f);
 
     camera.setPosition({0, 0, 5});
 
     ShaderCache shaderCache(renderSystem, engineResources);
 
-    auto asset = std::unique_ptr<Asset>(
-            AssetLoader::LoadAsset(renderSystem, engineResources.getEntryStream("/BuddyDroid_01DMG_rig.dasset")));
-    std::shared_ptr<AssetRenderer> assetRenderer = std::shared_ptr<AssetRenderer>(
-            AssetRenderer::fromAsset(renderSystem, renderContext, shaderCache, asset, camera)
-    );
+    Scene scene(camera);
+
+    std::unique_ptr<SceneRenderer> sceneRenderer = std::make_unique<SceneRenderer>(renderSystem, renderContext, shaderCache, scene);
+
+    scene.addLight(Light(LightType::POINT, {1, 0, 0}, glm::vec3{1, 1, 1}, 1));
+    {
+        auto asset = std::unique_ptr<Asset>(
+                AssetLoader::LoadAsset(renderSystem, engineResources.getEntryStream("/BuddyDroid_01DMG_rig.dasset")));
+        scene.addAsset(asset);
+    }
 
 //    std::shared_ptr<MeshRenderer> meshRenderer1 = std::shared_ptr<MeshRenderer>(
 //            MeshRenderer::newTriangleMeshRenderer(renderSystem, renderContext, shaderCache, camera, {0, 0, 0})
@@ -143,7 +156,7 @@ void RunEngine() {
                 {
                     commandBuffer->Clear(LLGL::ClearFlags::ColorDepth);
                     commandBuffer->SetViewport(window->GetSize());
-                    assetRenderer->render(*commandBuffer);
+                    sceneRenderer->render(*commandBuffer);
                 }
                 commandBuffer->EndRenderPass();
             }
