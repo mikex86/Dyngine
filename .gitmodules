@@ -13,3 +13,6 @@
 [submodule "libraries/stb"]
 	path = libraries/stb
 	url = https://github.com/nothings/stb
+[submodule "libraries/LLGL"]
+	path = libraries/LLGL
+	url = https://github.com/LukasBanana/LLGL
