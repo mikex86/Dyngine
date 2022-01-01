@@ -102,3 +102,6 @@ add_compile_definitions(LLGL_ENABLE_UTILITY) # Enable the Utility functions
 
 # Engine Module
 add_subdirectory("Engine")
+
+#Editor Module
+add_subdirectory("Editor")

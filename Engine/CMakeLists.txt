@@ -3,11 +3,12 @@ project(Dyngine_Engine)
 set(CMAKE_CXX_STANDARD 20)
 
 file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/src/*.cpp")
-add_executable(Dyngine_Engine ${SOURCE_FILES})
+add_library(Dyngine_Engine STATIC ${SOURCE_FILES})
 target_include_directories(Dyngine_Engine PRIVATE "${CMAKE_CURRENT_LIST_DIR}/private")
 target_include_directories(Dyngine_Engine PUBLIC "${CMAKE_CURRENT_LIST_DIR}/public")
 
 # Link libraries
+
 
 # LLGL
 
@@ -33,7 +34,7 @@ target_link_libraries(Dyngine_Engine PRIVATE STB_LIBRARY)
 # Build Engine Resources
 
 set(RESOURCE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/resources")
-set(RESOURCES_BINARY_DIRECTORY "${CMAKE_BINARY_DIR}/resources")
+set(RESOURCES_BINARY_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/resources")
 
 # Create RESOURCES_BINARY_DIRECTORY
 add_custom_command(
@@ -45,7 +46,7 @@ add_custom_command(
 
 # Compile shaders
 set(SHADER_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/shaders")
-set(SHADER_BINARY_DIR "${CMAKE_BINARY_DIR}/compiled_shaders")
+set(SHADER_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/compiled_shaders")
 
 # Create SHADER_BINARY_DIR
 add_custom_command(
@@ -236,8 +237,8 @@ add_custom_command(
         COMMENT "Packaging engine resources"
         OUTPUT "${ENGINE_RESOURCE_PACKAGE}"
 )
-add_custom_target(Dyngine_PackageResources ALL DEPENDS ${ENGINE_RESOURCE_PACKAGE})
-add_dependencies(Dyngine_PackageResources DpacDeflate)
+add_custom_target(Dyngine_Engine_PackageResources ALL DEPENDS ${ENGINE_RESOURCE_PACKAGE})
+add_dependencies(Dyngine_Engine_PackageResources DpacDeflate)
 
 # Setup Working Directory
 # Copy library files
@@ -246,15 +247,32 @@ if (${CMAKE_BUILD_TYPE} MATCHES "Debug")
 else ()
     set(LLGL_LIBRARY_POST_FIX "")
 endif ()
-set(LLGL_LIBRARY_FILES "${CMAKE_BINARY_DIR}/libraries/LLGL/build/LLGL${LLGL_LIBRARY_POST_FIX}.dll;${CMAKE_BINARY_DIR}/libraries/LLGL/build/LLGL_${LLGL_GRAPHICS_API}${LLGL_LIBRARY_POST_FIX}.dll;")
+
+# Get library extension
+if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set(LIBRARY_EXTENSION "dll")
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    set(LIBRARY_EXTENSION "so")
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(LIBRARY_EXTENSION "dylib")
+else ()
+    message(FATAL_ERROR "Unsupported system: ${CMAKE_SYSTEM_NAME}")
+endif ()
+
+# Determine shared library files to copy into engine working directory
+# Copy LLGL dll files
+set(LIBRARY_FILES "${CMAKE_BINARY_DIR}/libraries/LLGL/build/LLGL${LLGL_LIBRARY_POST_FIX}.${LIBRARY_EXTENSION}" ; "${CMAKE_BINARY_DIR}/libraries/LLGL/build/LLGL_${LLGL_GRAPHICS_API}${LLGL_LIBRARY_POST_FIX}.${LIBRARY_EXTENSION}")
+
+message(STATUS "Library files to copy: ${LIBRARY_FILES}")
+
 add_custom_command(
         COMMAND
-        ${CMAKE_COMMAND} -E copy_if_different ${LLGL_LIBRARY_FILES} ${ENGINE_WORKING_DIRECTORY}
+        ${CMAKE_COMMAND} -E copy_if_different ${LIBRARY_FILES} ${ENGINE_WORKING_DIRECTORY}
         DEPENDS "${ENGINE_WORKING_DIRECTORY}" LLGL LLGL_${LLGL_GRAPHICS_API}
-        COMMENT "Copying LLGL libraries to working directory"
-        OUTPUT "LLGL_LIB_COPY"
+        COMMENT "Copying engine libraries to engine working directory"
+        OUTPUT "LIB_COPY"
 )
 
-add_custom_target(Dyngine_SetupWorkingDirectory ALL DEPENDS Dyngine_PackageResources LLGL_LIB_COPY)
+add_custom_target(Dyngine_Engine_SetupWorkingDirectory ALL DEPENDS Dyngine_Engine_PackageResources LIB_COPY)
 
-add_dependencies(Dyngine_Engine Dyngine_SetupWorkingDirectory)
+add_dependencies(Dyngine_Engine Dyngine_Engine_SetupWorkingDirectory)

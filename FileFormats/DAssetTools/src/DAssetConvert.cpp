@@ -10,6 +10,7 @@
 #include <DAsset/Asset.hpp>
 #include <iostream>
 #include <ErrorHandling/IllegalStateException.hpp>
+#include <ErrorHandling/IllegalArgumentException.hpp>
 
 #include <Stream/FileDataWriteStream.hpp>
 
@@ -19,8 +20,6 @@
 #include <map>
 
 DAsset::Asset FromTinyGLTF(const tinygltf::Model &model);
-
-DAsset::AttributeType GetAttributeType(const std::string &attributeName);
 
 struct ConverterState {
 private:
@@ -171,22 +170,22 @@ DAsset::RenderMode GetRenderMode(int gltfMode) {
     }
 }
 
-DAsset::AttributeType GetAttributeType(const std::string &attributeName) {
-    if (attributeName == "POSITION")
+DAsset::AttributeType GetAttributeType(const std::string &gltfAttributeName) {
+    if (gltfAttributeName == "POSITION")
         return DAsset::AttributeType::POSITION;
-    if (attributeName == "NORMAL")
+    if (gltfAttributeName == "NORMAL")
         return DAsset::AttributeType::NORMAL;
-    if (attributeName == "TANGENT")
+    if (gltfAttributeName == "TANGENT")
         return DAsset::AttributeType::TANGENT;
-    if (attributeName == "TEXCOORD_0")
+    if (gltfAttributeName == "TEXCOORD_0")
         return DAsset::AttributeType::TEX_COORD;
-    if (attributeName == "COLOR_0")
+    if (gltfAttributeName == "COLOR_0")
         return DAsset::AttributeType::COLOR;
-    if (attributeName == "JOINTS_0")
+    if (gltfAttributeName == "JOINTS_0")
         return DAsset::AttributeType::JOINTS;
-    if (attributeName == "WEIGHTS_0")
+    if (gltfAttributeName == "WEIGHTS_0")
         return DAsset::AttributeType::WEIGHTS;
-    RAISE_EXCEPTION(errorhandling::IllegalStateException, "Unknown attribute type: " + attributeName);
+    RAISE_EXCEPTION(errorhandling::IllegalStateException, "Unknown attribute type: " + gltfAttributeName);
 }
 
 stbi_uc *ReadTextureImageData(const tinygltf::Model &model, uint64_t textureIndex, int32_t &width, int32_t &height,
@@ -240,6 +239,21 @@ uint8_t *JpegCompress(const uint8_t *imageData, uint32_t width, uint32_t height,
     int result = stbi_write_jpg_to_func(MemoryDecode, &context, width, height, channels, imageData, quality);
     compressedSize = context.last_pos;
     return context.buffer;
+}
+
+uint8_t *PngEncode(const uint8_t *imageData, uint32_t width, uint32_t height, uint32_t channels,
+                   size_t &encodedSize) {
+    int length{};
+    uint8_t *bytes = stbi_write_png_to_mem(imageData, width * channels, width, height, channels,
+                                           &length);
+    encodedSize = length;
+    return bytes;
+}
+
+uint8_t *ImageEncode(const uint8_t *imageData, uint32_t width, uint32_t height, uint32_t channels,
+                     size_t &encodedSize) {
+//    return JpegCompress(imageData, width, height, channels, 100, encodedSize);
+    return PngEncode(imageData, width, height, channels, encodedSize);
 }
 
 DAsset::SamplerFilter GetTextureFilter(int gltfFilter) {
@@ -320,9 +334,9 @@ GetOrMakeTexture(DAsset::Asset &asset, const tinygltf::Model &model, uint64_t te
         uint64_t imageDataLength = imageWidth * imageWidth * imageChannels;
 
         size_t compressedImageDataLength{};
-        auto compressedImageData = JpegCompress(
+        auto compressedImageData = ImageEncode(
                 imageData, imageWidth, imageHeight,
-                imageChannels, 80, // TODO: remove hardcoded quality
+                imageChannels,
                 compressedImageDataLength
         );
         delete[] imageData;
@@ -354,9 +368,9 @@ GetOrMakeRMATexture(DAsset::Asset &asset, const tinygltf::Model &model, const ti
                     ConverterState &converterState) {
     auto &textureCollection = asset.textureCollection;
     auto &bufferCollection = asset.bufferCollection;
-    uint64_t metallicRoughnessTextureIndex = material.pbrMetallicRoughness.metallicRoughnessTexture.index;
-    uint64_t occlusionTextureIndex = material.occlusionTexture.index;
-    uint64_t lookupKey = metallicRoughnessTextureIndex << 32 || occlusionTextureIndex;
+    uint32_t metallicRoughnessTextureIndex = material.pbrMetallicRoughness.metallicRoughnessTexture.index;
+    uint32_t occlusionTextureIndex = material.occlusionTexture.index;
+    uint64_t lookupKey = static_cast<uint64_t>(metallicRoughnessTextureIndex) << 32 | occlusionTextureIndex;
 
     auto rmaTextureIdOpt = converterState.getRMATextureId(lookupKey);
     if (!rmaTextureIdOpt.has_value()) {
@@ -415,6 +429,7 @@ GetOrMakeRMATexture(DAsset::Asset &asset, const tinygltf::Model &model, const ti
         uint64_t rmaImageDataLength = rmaImageWidth * rmaImageHeight * rmaImageChannels * sizeof(uint8_t);
         // (R = roughness, G = Metalness, B = Ambient Occlusion)
         uint8_t *rmaImageData = new stbi_uc[rmaImageDataLength];
+        memset(rmaImageData, 0, rmaImageDataLength);
         for (uint64_t i = 0; i < rmaImageDataLength; i++) {
             uint64_t pixel = i / rmaImageChannels;
             uint64_t channel = i % rmaImageChannels;
@@ -442,9 +457,9 @@ GetOrMakeRMATexture(DAsset::Asset &asset, const tinygltf::Model &model, const ti
             }
         }
         size_t rmaCompressedImageDataLength{};
-        auto rmaCompressedImageData = JpegCompress(
+        auto rmaCompressedImageData = ImageEncode(
                 rmaImageData, rmaImageWidth, rmaImageHeight,
-                rmaImageChannels, 50, // TODO: remove hardcoded quality
+                rmaImageChannels,
                 rmaCompressedImageDataLength
         );
         delete[] rmaImageData;
@@ -492,8 +507,18 @@ GetOrMakeMaterial(DAsset::Asset &asset, const tinygltf::Model &model, uint64_t m
     auto materialIdOpt = converterState.getMaterialId(materialIndex);
     if (!materialIdOpt.has_value()) {
         auto material = materialCollection.newMaterial();
+        if (materialIndex == -1) {
+            material->name = "default";
+            material->albedoFactor = glm::vec4(1, 1, 1, 1);
+            material->roughnessFactor = 0;
+            material->metalnessFactor = 0;
+            material->ambientOcclusionFactor = 0;
+            material->normalScale = 1;
+            return material;
+        }
         auto gltfMaterial = model.materials[materialIndex];
         auto gltfPbr = gltfMaterial.pbrMetallicRoughness;
+        material->name = gltfMaterial.name;
         material->albedoFactor = glm::vec4(gltfPbr.baseColorFactor[0], gltfPbr.baseColorFactor[1],
                                            gltfPbr.baseColorFactor[2], gltfPbr.baseColorFactor[3]);
         material->roughnessFactor = gltfPbr.roughnessFactor;
@@ -573,15 +598,46 @@ FromGLTFMesh(DAsset::Asset &asset, const tinygltf::Model &model, const tinygltf:
         if (primitive.indices != -1) {
             auto accessorIndex = primitive.indices;
             indexBufferView = MakeBufferView(bufferCollection, model, accessorIndex, converterState);
+            if (indexBufferView.componentType != DAsset::ComponentType::SCALAR) {
+                RAISE_EXCEPTION(errorhandling::IllegalArgumentException,
+                                "Index buffer component type must be scalar");
+            }
         }
 
         std::map<DAsset::AttributeType, DAsset::BufferView> attributeBufferViews{};
         // Create buffers + views for other vertex attributes. eg. position, normal, etc.
-        for (auto[targetName, accessorIndex]: primitive.attributes) {
-            auto attributeType = GetAttributeType(targetName);
-            attributeBufferViews[attributeType] = MakeBufferView(bufferCollection, model, accessorIndex,
-                                                                 converterState);
+        for (auto[gltfAttributeTypeName, accessorIndex]: primitive.attributes) {
+            auto attributeType = GetAttributeType(gltfAttributeTypeName);
+            auto attributeTypeName = DAsset::GetAttributeTypeName(attributeType);
+            auto bufferView = MakeBufferView(bufferCollection, model, accessorIndex,
+                                             converterState);
+            auto actualComponentType = bufferView.componentType;
+            auto requiredComponentType = DAsset::GetRequiredComponentTypeForAttribute(attributeType);
+
+            if (actualComponentType != requiredComponentType) {
+                throw std::runtime_error("Component type of attribute " + attributeTypeName +
+                                         " (" + DAsset::GetComponentTypeName(actualComponentType) +
+                                         ") does not match required component type (" +
+                                         DAsset::GetComponentTypeName(requiredComponentType) + ")"
+                );
+            }
+
+            attributeBufferViews[attributeType] = bufferView;
         }
+
+        // Check if required attributes are present: POSITION, NORMAL, TANGENT
+        {
+            auto requiredAttributes = {DAsset::AttributeType::POSITION, DAsset::AttributeType::NORMAL,
+                                       DAsset::AttributeType::TANGENT};
+            for (auto requiredAttribute: requiredAttributes) {
+                if (attributeBufferViews.find(requiredAttribute) == attributeBufferViews.end()) {
+                    RAISE_EXCEPTION(errorhandling::IllegalArgumentException,
+                                    "Required attribute " + DAsset::GetAttributeTypeName(requiredAttribute) +
+                                    " not found in mesh");
+                }
+            }
+        }
+
         // Add Material
         std::shared_ptr<DAsset::Material> material;
         {

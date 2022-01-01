@@ -95,6 +95,7 @@ namespace DAsset {
 
     struct Material {
         uint64_t materialId;
+        std::string name;
         glm::vec4 albedoFactor;
         float roughnessFactor;
         float metalnessFactor;
@@ -179,6 +180,8 @@ namespace DAsset {
     std::string GetRenderModeName(RenderMode renderMode);
 
     uint64_t GetSize(DataType dataType, ComponentType componentType);
+
+    DAsset::ComponentType GetRequiredComponentTypeForAttribute(DAsset::AttributeType attributeType);
 
     std::string GetTextureAddressModeName(SamplerAddressMode mode);
 

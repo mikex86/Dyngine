@@ -3,8 +3,6 @@
 #include <ErrorHandling/IllegalStateException.hpp>
 #include <optional>
 
-#define MAX_NODE_NAME_LENGTH 32
-
 void WriteBufferView(const DAsset::BufferCollection &bufferCollection, const DAsset::BufferView &bufferView,
                      const std::unique_ptr<Stream::DataWriteStream> &stream) {
     stream->writeInt64(bufferView.byteOffset);
@@ -61,7 +59,7 @@ void WriteMesh(const DAsset::BufferCollection &bufferCollection, const DAsset::M
 
 void WriteNode(const DAsset::BufferCollection &bufferCollection, const DAsset::MaterialCollection &materialCollection,
                const DAsset::Node &node, const std::unique_ptr<Stream::DataWriteStream> &stream) {
-    stream->writeFixedString(node.name, MAX_NODE_NAME_LENGTH);
+    stream->writeString(node.name);
     stream->writeFloat32(node.translation.x);
     stream->writeFloat32(node.translation.y);
     stream->writeFloat32(node.translation.z);
@@ -130,6 +128,7 @@ void WriteMaterialCollection(const DAsset::MaterialCollection &materialCollectio
     stream->writeInt64(materialCollection.materials.size());
     for (const auto &material: materialCollection.materials) {
         stream->writeInt64(material->materialId);
+        stream->writeString(material->name);
         stream->writeFloat32(material->albedoFactor.x);
         stream->writeFloat32(material->albedoFactor.y);
         stream->writeFloat32(material->albedoFactor.z);
@@ -205,7 +204,7 @@ DAsset::Node
 ReadNode(const DAsset::BufferCollection &bufferCollection, const DAsset::MaterialCollection &materialCollection,
          const std::unique_ptr<Stream::DataReadStream> &stream) {
     DAsset::Node node{};
-    node.name = stream->readFixedString(MAX_NODE_NAME_LENGTH);
+    node.name = stream->readString();
     node.translation.x = stream->readFloat32();
     node.translation.y = stream->readFloat32();
     node.translation.z = stream->readFloat32();
@@ -297,8 +296,10 @@ DAsset::MaterialCollection ReadMaterialCollection(const DAsset::TextureCollectio
     materialCollection.materials = std::vector<std::shared_ptr<DAsset::Material>>(materialCount);
     for (uint64_t materialIndex = 0u; materialIndex < materialCount; ++materialIndex) {
         auto materialId = stream->readInt64();
+        auto materialName = stream->readString();
 
         auto material = std::make_shared<DAsset::Material>(materialId);
+        material->name = materialName;
         material->albedoFactor =
                 {stream->readFloat32(), stream->readFloat32(), stream->readFloat32(), stream->readFloat32()};
         material->roughnessFactor = stream->readFloat32();
@@ -483,6 +484,30 @@ std::string DAsset::GetTextureFilterName(DAsset::SamplerFilter filter) {
             return "NEAREST";
         default:
             return "UNKNOWN";
+    }
+}
+
+DAsset::ComponentType DAsset::GetRequiredComponentTypeForAttribute(DAsset::AttributeType attributeType) {
+    switch (attributeType) {
+        case AttributeType::POSITION:
+            return ComponentType::VEC3;
+        case AttributeType::NORMAL:
+            return ComponentType::VEC3;
+        case AttributeType::TANGENT:
+            return ComponentType::VEC4;
+        case AttributeType::TEX_COORD:
+            return ComponentType::VEC2;
+        case AttributeType::COLOR:
+            return ComponentType::VEC4;
+        case AttributeType::JOINTS:
+            return ComponentType::VEC4;
+        case AttributeType::WEIGHTS:
+            return ComponentType::VEC4;
+        default:
+            // TODO: FIND OUT MISSING CASES
+            RAISE_EXCEPTION(errorhandling::IllegalArgumentException,
+                            "Don't know required attribute type for attribute type " +
+                            GetAttributeTypeName(attributeType));
     }
 }
 
