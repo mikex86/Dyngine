@@ -47,12 +47,25 @@ target_link_libraries(Dyngine_Editor PRIVATE Dyngine_Engine) # Dyngine Engine de
 # Required QT libraries list
 set(REQUIRED_QT_LIBRARIES Gui;Core;Widgets)
 
+
 find_package(Qt5 COMPONENTS ${REQUIRED_QT_LIBRARIES} REQUIRED)
 
 # Link against required QT libraries
+if (${CMAKE_BUILD_TYPE} MATCHES "Debug")
+    set(QT_LIBRARY_POST_FIX "d")
+else ()
+    set(QT_LIBRARY_POST_FIX "")
+endif ()
 foreach (LIB IN LISTS REQUIRED_QT_LIBRARIES)
     target_link_libraries(Dyngine_Editor PRIVATE Qt5::${LIB})
     get_property(QT_LIB_LOCATION TARGET Qt5::${LIB} PROPERTY LOCATION)
+
+    # Append QT_LIBRARY_POST_FIX to QT_LIB_LOCATION before the library extension
+    get_filename_component(QT_LIB_FILE_DIR "${QT_LIB_LOCATION}" DIRECTORY)
+    get_filename_component(QT_LIB_FILE_NAME "${QT_LIB_LOCATION}" NAME_WE)
+    get_filename_component(QT_LIB_FILE_EXT "${QT_LIB_LOCATION}" EXT)
+    set(QT_LIB_LOCATION "${QT_LIB_FILE_DIR}/${QT_LIB_FILE_NAME}${QT_LIBRARY_POST_FIX}${QT_LIB_FILE_EXT}")
+    message(STATUS "QT_LIBRARY_FILE_NAME: ${QT_LIB_LOCATION}")
     list(APPEND QT_LIBRARY_FILES "${QT_LIB_LOCATION}")
 endforeach ()
 
