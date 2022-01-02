@@ -5,7 +5,7 @@ namespace Editor {
 
     using namespace Dyngine;
 
-    QtInputProvider::QtInputProvider() {
+    QtInputProvider::QtInputProvider(QWidget *captureInputFrom) : captureInputFrom(captureInputFrom) {
         QCoreApplication::instance()->installEventFilter(this);
     }
 
@@ -223,26 +223,58 @@ namespace Editor {
         if (event->type() == QEvent::MouseButtonPress) {
             QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
             MouseButtonPressEvent mouseButtonPressEvent{
-                    .x = mouseEvent->x(),
-                    .y = mouseEvent->y(),
                     .button = FromQtMouseButton(mouseEvent->button()),
             };
             fireMouseButtonPressEvent(mouseButtonPressEvent);
         } else if (event->type() == QEvent::MouseButtonRelease) {
             QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
             MouseButtonReleaseEvent mouseButtonReleaseEvent{
-                    .x = mouseEvent->x(),
-                    .y = mouseEvent->y(),
                     .button = FromQtMouseButton(mouseEvent->button()),
             };
             fireMouseButtonReleaseEvent(mouseButtonReleaseEvent);
         } else if (event->type() == QEvent::MouseMove) {
             QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-            MouseMoveEvent mouseMoveEvent{
-                    .x = mouseEvent->x(),
-                    .y = mouseEvent->y(),
-            };
-            fireMouseMoveEvent(mouseMoveEvent);
+            auto captureInputFromRect = captureInputFrom->rect();
+            auto captureInputFromRectGlobal = QRect(
+                    captureInputFrom->mapToGlobal(captureInputFromRect.topLeft()),
+                    captureInputFrom->mapToGlobal(captureInputFromRect.bottomRight())
+            );
+            auto focussedWidget = QApplication::focusWidget();
+            if (captureInputFrom->isActiveWindow() &&
+                focussedWidget == captureInputFrom &&
+                captureInputFromRectGlobal.contains(mouseEvent->globalPos())
+                && shouldGrabCursor) {
+                if (mouseEvent->pos() != captureInputFrom->rect().center()) {
+                    auto globalCenter = captureInputFrom->mapToGlobal(captureInputFrom->rect().center());
+                    if (!cursorGrabbed) {
+                        QCursor cursor(Qt::BlankCursor);
+                        cursor.setPos(globalCenter);
+                        QApplication::setOverrideCursor(cursor);
+                        cursorGrabbed = true;
+                    } else {
+                        if (cursorMovementsSinceWindowHasGainedFocus < 4) {
+                            cursorMovementsSinceWindowHasGainedFocus++;
+                            goto abortHandleMouse;
+                        }
+                        auto delta = QPoint(mouseEvent->globalX() - globalCenter.x(),
+                                            mouseEvent->globalY() - globalCenter.y());
+                        cursorGrabVirtualPos += delta;
+                        QApplication::overrideCursor()->setPos(globalCenter);
+                        MouseMoveEvent mouseMoveEvent{
+                                .x = cursorGrabVirtualPos.x(),
+                                .y = cursorGrabVirtualPos.y(),
+                        };
+                        fireMouseMoveEvent(mouseMoveEvent);
+                    }
+                }
+            } else {
+                cursorMovementsSinceWindowHasGainedFocus = 0;
+                if (cursorGrabbed) {
+                    QApplication::restoreOverrideCursor();
+                    cursorGrabbed = false;
+                }
+            }
+            abortHandleMouse:;
         } else if (event->type() == QEvent::KeyPress) {
             QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
             KeyboardKeyPressEvent keyPressEvent{
@@ -266,5 +298,12 @@ namespace Editor {
         return false;
     }
 
+    void QtInputProvider::setCursorGrabbed(bool cursorGrabbed) {
+        this->shouldGrabCursor = cursorGrabbed;
+    }
+
+    void QtInputProvider::fireMouseMoveEvent(const MouseMoveEvent &event) {
+        InputProvider::fireMouseMoveEvent(event);
+    }
 
 }

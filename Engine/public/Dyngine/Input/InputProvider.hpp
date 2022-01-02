@@ -174,15 +174,11 @@ namespace Dyngine {
 
     class MouseButtonPressEvent {
     public:
-        int x;
-        int y;
         MouseButton button;
     };
 
     class MouseButtonReleaseEvent {
     public:
-        int x;
-        int y;
         MouseButton button;
     };
 
@@ -222,33 +218,43 @@ namespace Dyngine {
         char character;
     };
 
+    class CursorDeltaEvent {
+    public:
+        int x;
+        int y;
+    };
+
     class InputListener;
 
     class InputProvider {
 
     private:
+        int deltaX, deltaY;
         std::vector<std::shared_ptr<InputListener>> inputListeners;
 
     protected:
-        void fireMouseMoveEvent(const MouseMoveEvent &event);
+        virtual void fireMouseMoveEvent(const MouseMoveEvent &event);
 
-        void fireMouseButtonPressEvent(const MouseButtonPressEvent &event);
+        virtual void fireMouseButtonPressEvent(const MouseButtonPressEvent &event);
 
-        void fireMouseButtonReleaseEvent(const MouseButtonReleaseEvent &event);
+        virtual void fireMouseButtonReleaseEvent(const MouseButtonReleaseEvent &event);
 
-        void fireMouseDoubleClickEvent(const MouseDoubleClickEvent &event);
+        virtual void fireMouseDoubleClickEvent(const MouseDoubleClickEvent &event);
 
-        void fireMouseWheelEvent(const MouseWheelEvent &event);
+        virtual void fireMouseWheelEvent(const MouseWheelEvent &event);
 
-        void fireKeyboardKeyPressEvent(const KeyboardKeyPressEvent &event);
+        virtual void fireKeyboardKeyPressEvent(const KeyboardKeyPressEvent &event);
 
-        void fireKeyboardKeyReleaseEvent(const KeyboardKeyReleaseEvent &event);
+        virtual void fireKeyboardKeyReleaseEvent(const KeyboardKeyReleaseEvent &event);
 
-        void fireKeyboardCharacterEvent(const KeyboardCharacterEvent &event);
+        virtual void fireKeyboardCharacterEvent(const KeyboardCharacterEvent &event);
 
     public:
         void registerListener(const std::shared_ptr<InputListener> &listener);
+
         void unregisterListener(const std::shared_ptr<InputListener> &listener);
+
+        virtual void setCursorGrabbed(bool grabbed) = 0;
     };
 
 }

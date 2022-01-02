@@ -68,6 +68,12 @@
       </item>
       <item>
        <widget class="QLabel" name="frameBuffer">
+        <property name="focusPolicy">
+         <enum>Qt::ClickFocus</enum>
+        </property>
+        <property name="contextMenuPolicy">
+         <enum>Qt::PreventContextMenu</enum>
+        </property>
         <property name="text">
          <string/>
         </property>
@@ -86,7 +92,13 @@
      <height>20</height>
     </rect>
    </property>
+   <property name="focusPolicy">
+    <enum>Qt::ClickFocus</enum>
+   </property>
    <widget class="QMenu" name="menuFile">
+    <property name="focusPolicy">
+     <enum>Qt::ClickFocus</enum>
+    </property>
     <property name="title">
      <string>File</string>
     </property>
@@ -106,10 +118,16 @@
     <addaction name="separator"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
+    <property name="focusPolicy">
+     <enum>Qt::ClickFocus</enum>
+    </property>
     <property name="title">
      <string>Edit</string>
     </property>
     <widget class="QMenu" name="menuFind">
+     <property name="focusPolicy">
+      <enum>Qt::ClickFocus</enum>
+     </property>
      <property name="title">
       <string>Find</string>
      </property>
@@ -133,10 +151,16 @@
     <addaction name="actionSelect_All"/>
    </widget>
    <widget class="QMenu" name="menuView">
+    <property name="focusPolicy">
+     <enum>Qt::ClickFocus</enum>
+    </property>
     <property name="title">
      <string>View</string>
     </property>
     <widget class="QMenu" name="menuEnter">
+     <property name="focusPolicy">
+      <enum>Qt::ClickFocus</enum>
+     </property>
      <property name="title">
       <string>Enter...</string>
      </property>
@@ -146,10 +170,16 @@
     <addaction name="menuEnter"/>
    </widget>
    <widget class="QMenu" name="menuBuild">
+    <property name="focusPolicy">
+     <enum>Qt::ClickFocus</enum>
+    </property>
     <property name="title">
      <string>Build</string>
     </property>
     <widget class="QMenu" name="menuBuild_2">
+     <property name="focusPolicy">
+      <enum>Qt::ClickFocus</enum>
+     </property>
      <property name="title">
       <string>Build...</string>
      </property>
@@ -159,6 +189,9 @@
     <addaction name="menuBuild_2"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
+    <property name="focusPolicy">
+     <enum>Qt::ClickFocus</enum>
+    </property>
     <property name="title">
      <string>Help</string>
     </property>
@@ -170,7 +203,11 @@
    <addaction name="menuBuild"/>
    <addaction name="menuHelp"/>
   </widget>
-  <widget class="QStatusBar" name="statusBar"/>
+  <widget class="QStatusBar" name="statusBar">
+   <property name="focusPolicy">
+    <enum>Qt::ClickFocus</enum>
+   </property>
+  </widget>
   <action name="actionProject">
    <property name="text">
     <string>Project</string>

@@ -10,6 +10,7 @@ namespace Dyngine {
     class KeyboardKeyPressEvent;
     class KeyboardKeyReleaseEvent;
     class KeyboardCharacterEvent;
+    class CursorDeltaEvent;
 
     class InputListener {
 

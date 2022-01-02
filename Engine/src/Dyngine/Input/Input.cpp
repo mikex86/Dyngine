@@ -1,7 +1,7 @@
 #include "Dyngine/Input/Input.hpp"
 
 namespace Dyngine {
-    
+
     Input::Input(const std::shared_ptr<InputProvider> &inputProvider) : inputProvider(inputProvider), listenerProxy(std::make_shared<InputListenerProxy>(*this)) {
         inputProvider->registerListener(listenerProxy);
     }
@@ -15,8 +15,12 @@ namespace Dyngine {
     }
 
     void Input::onMouseMoveEvent(const MouseMoveEvent &event) {
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
         mouseX = event.x;
         mouseY = event.y;
+        mouseDeltaX += mouseX - lastMouseX;
+        mouseDeltaY += mouseY - lastMouseY;
     }
 
     void Input::onMousePressEvent(const MouseButtonPressEvent &event) {
@@ -28,7 +32,9 @@ namespace Dyngine {
     }
 
     void Input::onMouseWheelEvent(const MouseWheelEvent &event) {
+        lastMouseWheelPosition = mouseWheelPosition;
         mouseWheelPosition += event.delta;
+        mouseWheelDelta = mouseWheelPosition - lastMouseWheelPosition;
     }
 
     void Input::onKeyboardKeyPressEvent(const KeyboardKeyPressEvent &event) {
@@ -48,19 +54,19 @@ namespace Dyngine {
     }
 
     int Input::getMouseDeltaX() {
-        return mouseX - lastMouseX;
+        auto dX = mouseDeltaX;
+        mouseDeltaX = 0;
+        return dX;
     }
 
     int Input::getMouseDeltaY() {
-        return mouseY - lastMouseY;
+        auto dY = mouseDeltaY;
+        mouseDeltaY = 0;
+        return dY;
     }
 
     int Input::getMouseWheelPosition() {
         return mouseWheelPosition;
-    }
-
-    int Input::getMouseWheelDelta() {
-        return mouseWheelPosition - lastMouseWheelPosition;
     }
 
     bool Input::isMouseButtonDown(MouseButton button) {
@@ -79,10 +85,8 @@ namespace Dyngine {
         return false;
     }
 
-    void Input::computeDeltas() {
-        lastMouseX = mouseX;
-        lastMouseY = mouseY;
-        lastMouseWheelPosition = mouseWheelPosition;
+    void Input::setCursorGrabbed(bool grabbed) {
+        inputProvider->setCursorGrabbed(grabbed);
     }
 
     Input::~Input() {

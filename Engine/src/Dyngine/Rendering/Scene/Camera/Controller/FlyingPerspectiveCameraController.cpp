@@ -45,16 +45,14 @@ void FlyingPerspectiveCameraController::update(float deltaTime) {
         }
 
         {
+            input->setCursorGrabbed(true);
             auto deltaX = input->getMouseDeltaX();
             auto deltaY = input->getMouseDeltaY();
 
             if (input->isMouseButtonDown(Dyngine::MouseButton::MIDDLE)) {
                 camera.setRoll(camera.getRoll() + static_cast<float>(deltaX) * 0.1f);
             }
-            {
-//                display->ShowCursor(false);
-//                display->SetCursorPosition(static_cast<int>(windowPosition.x + windowSize.width / 2),
-//                                           static_cast<int>(windowPosition.y + windowSize.height / 2));
+            if (deltaX != 0 || deltaY != 0) {
                 camera.setRotation(camera.getYaw() + static_cast<float>(deltaX) * 0.1f,
                                    camera.getPitch() + static_cast<float>(deltaY) * -0.1f);
             }
@@ -111,7 +109,6 @@ void FlyingPerspectiveCameraController::update(float deltaTime) {
         auto speed = speedFactor * deltaTime;
         camera.setPosition(camera.getPosition() + direction * speed);
     }
-    input->computeDeltas();
 }
 
 float FlyingPerspectiveCameraController::applyDeadZone(float value, float deadZone) {

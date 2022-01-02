@@ -41,9 +41,11 @@ namespace Dyngine {
 
         int lastMouseX{}, lastMouseY{};
         int mouseX{}, mouseY{};
+        int mouseDeltaX{}, mouseDeltaY{};
 
         int lastMouseWheelPosition = 0;
         int mouseWheelPosition = 0;
+        int mouseWheelDelta{};
 
         std::map<MouseButton, bool> mouseButtonDownStates;
 
@@ -78,13 +80,11 @@ namespace Dyngine {
 
         int getMouseWheelPosition();
 
-        int getMouseWheelDelta();
-
         bool isMouseButtonDown(MouseButton button);
 
         bool isKeyboardKeyDown(KeyboardKey key);
 
-        void computeDeltas();
+        void setCursorGrabbed(bool grabbed);
 
         virtual ~Input();
     };

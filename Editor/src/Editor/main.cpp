@@ -9,6 +9,7 @@
 #include "Editor/Input/QtInputProvider.hpp"
 
 int main(int argc, char **argv) {
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc, argv);
 
     QMainWindow *window = new QMainWindow();
@@ -18,7 +19,7 @@ int main(int argc, char **argv) {
     auto renderContext = std::make_unique<Dyngine::EngineRenderContext>();
     auto frameBufferRenderTarget = std::make_shared<Dyngine::FrameBufferRenderTarget>(renderContext);
 
-    auto qtInputProvider = std::make_shared<Editor::QtInputProvider>();
+    auto qtInputProvider = std::make_shared<Editor::QtInputProvider>(ui.frameBuffer);
 
     Dyngine::EngineInstance *engineInstance = new Dyngine::EngineInstance(
             frameBufferRenderTarget,
