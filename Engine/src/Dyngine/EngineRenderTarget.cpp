@@ -16,7 +16,9 @@ namespace Dyngine {
     }
 
     void FrameBufferRenderTarget::resizeFrameBuffer(int width, int height) {
-        delete renderTargetState;
+        if (renderTargetState != nullptr) {
+            delete renderTargetState;
+        }
         renderTargetState = new FrameBufferRenderTargetState(this->renderContext, width, height);
     }
 
