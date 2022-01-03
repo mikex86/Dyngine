@@ -207,7 +207,17 @@
       <number>0</number>
      </property>
      <item>
-      <widget class="QTreeView" name="treeFileExplorer"/>
+      <widget class="QTreeView" name="treeFileExplorer">
+       <attribute name="headerCascadingSectionResizes">
+        <bool>true</bool>
+       </attribute>
+       <attribute name="headerHighlightSections">
+        <bool>false</bool>
+       </attribute>
+       <attribute name="headerStretchLastSection">
+        <bool>false</bool>
+       </attribute>
+      </widget>
      </item>
     </layout>
    </widget>

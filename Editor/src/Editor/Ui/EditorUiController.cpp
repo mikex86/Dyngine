@@ -13,7 +13,7 @@ Editor::EditorUiController::EditorUiController() : editorUi(Ui::EditorWindow()) 
     // Create file model for file browsers
     explorerDirModel = new QDirModel();
     explorerDirModel->setSorting(QDir::DirsFirst | QDir::IgnoreCase | QDir::Name);
-    explorerDirModel->setResolveSymlinks(true);
+    explorerDirModel->setResolveSymlinks(false);
 
     editorUi.treeFileExplorer->setModel(nullptr);
     editorUi.listFileExplorer->setModel(nullptr);
@@ -64,6 +64,8 @@ void Editor::EditorUiController::openProject(std::string dyProjectFilePathStr) {
 
     // Setup file model for file browsers
     editorUi.treeFileExplorer->setModel(explorerDirModel);
+    editorUi.treeFileExplorer->setColumnHidden(2, true); // hide file type
+    editorUi.treeFileExplorer->setColumnHidden(3, true); // hide date modified
     editorUi.listFileExplorer->setModel(explorerDirModel);
 
     // Selected file changed listener
@@ -115,7 +117,6 @@ void Editor::EditorUiController::onFileChanged(const QString &path) {
 
 void Editor::EditorUiController::onDirectoryChanged(const QString &path) {
     if (fileWatcher != nullptr) {
-
         // Remove path and sub-paths from fileWatcher
         // This is to ensure that the file watcher is not watching the same file twice, as there is no way
         // to check if we are already watching a specific folder
